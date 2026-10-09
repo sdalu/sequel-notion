@@ -903,4 +903,39 @@ class TestFilterCompiler < Minitest::Test
         assert_equal({ "property" => "Name",
                        "rich_text" => { "equals" => "a" } }, compile(expr))
     end
+
+    # A date has no does_not_equal: NOT IN is an and of before-or-after
+    def test_not_in_dates
+        d1 = Date.new(2026, 1, 1)
+        d2 = Date.new(2026, 2, 1)
+        expr = @db[:t].exclude(Due: [d1, d2]).opts[:where]
+        assert_equal(
+            { "and" => [d1, d2].map do |d|
+                { "or" => %w[before after].map do |op|
+                    { "property" => "Due", "date" => { op => d.iso8601 } }
+                end }
+            end },
+            compile(expr)
+        )
+    end
+
+    def test_in_dates
+        d1 = Date.new(2026, 1, 1)
+        expr = @db[:t].where(Due: [d1, nil]).opts[:where]
+        assert_equal(
+            { "or" => [
+                { "property" => "Due", "date" => { "equals" => "2026-01-01" } },
+                { "property" => "Due", "date" => { "is_empty" => true } }
+            ] },
+            compile(expr)
+        )
+    end
+
+    # where(P: true) takes a checkbox or a formula, as where(:P) does
+    def test_is_true_on_other_types_raises
+        %i[Due N Name Select].each do |name|
+            expr = @db[:t].where(name => true).opts[:where]
+            assert_raises(Sequel::Error) { compile(expr) }
+        end
+    end
 end

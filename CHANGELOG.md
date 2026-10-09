@@ -50,11 +50,15 @@
   per group; `order`, `offset` and `limit` apply to the groups; `having`
   filters the groups, with SQL's three-valued logic (checked live).
 - `union` (and `all:`), `intersect` and `except` work, computed in Ruby
-  (checked live).
+  (checked live); a `select` of columns on the result applies to the
+  combined rows.
 - `join` and `left_join` on one equality, matched in Ruby: a relation
   matches the pages it lists, each `where` condition runs in Notion on
   the one table it tests, and aggregates and groups keep a qualified
-  column's table (checked live through a relation).
+  column's table (checked live through a relation). A `where` on a left
+  join's joined table drops a row whose partners all fail it, as SQL
+  does, and keeps a row with no partner only if an empty page passes it
+  (checked live).
 
 ### Changed
 
@@ -144,6 +148,13 @@
   strings, which a write takes as is, instead of its start alone.
 - A lock (`for_update`) on a join or a combined query raises, as on any
   other query, instead of being dropped.
+- `NOT IN` on a date, created-time or edited-time property is an `and`
+  of `before or after`, as `!=` is, instead of raising.
+- `where(P: true)` on a property that is neither a checkbox nor a
+  formula raises, as `where(:P)` does, instead of sending a bare `true`
+  as a date, number or text.
+- A `Hash` written to a multi-select, relation or people property
+  raises instead of becoming one option or id per key/value pair.
 
 ## 0.1.0
 

@@ -464,4 +464,13 @@ class TestTypeMap < Minitest::Test
             result
         )
     end
+
+    # A Hash is no list of names or ids
+    def test_hash_to_a_list_property_raises
+        %w[multi_select relation people].each do |type|
+            assert_raises(Sequel::Error) do
+                TM.build_property({ a: "b" }, type)
+            end
+        end
+    end
 end

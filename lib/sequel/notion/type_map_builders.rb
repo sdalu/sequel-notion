@@ -71,7 +71,7 @@ module Sequel
             end
 
             def build_multi_select(value)
-                Array(value).map { { "name" => it.to_s } }
+                list(value).map { { "name" => it.to_s } }
             end
 
             def build_checkbox(value)
@@ -87,10 +87,21 @@ module Sequel
             end
 
             # One id or an Array of them; nil is none
-            def build_relation(value) = Array(value).map { { "id" => it } }
+            def build_relation(value) = list(value).map { { "id" => it } }
 
             def build_people(value)
-                Array(value).map { { "object" => "user", "id" => it } }
+                list(value).map { { "object" => "user", "id" => it } }
+            end
+
+            # One item or an Array of them; nil is none. Array() would
+            # turn a Hash into its pairs.
+            def list(value)
+                if value.is_a?(Hash)
+                    raise Sequel::Error, "a list of names or ids takes no " \
+                                         "Hash: #{value.inspect}"
+                end
+
+                Array(value)
             end
 
             def build_files(value)

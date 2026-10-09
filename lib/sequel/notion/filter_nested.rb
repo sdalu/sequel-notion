@@ -21,14 +21,15 @@ module Sequel
                 compile_nested_comparison(name, op, value, key, inner_key)
             end
 
-            # IN on a formula or rollup: an or of equalities, or an and of
-            # inequalities, each nested
-            def nested_in(sequel_op, name, values, key)
+            # IN on a formula, a rollup or a date: an or of equalities, or
+            # an and of inequalities, each compiled as a comparison (nested,
+            # or a date's before-or-after)
+            def in_by_value(sequel_op, name, values, key)
                 op = sequel_op == :IN ? :"=" : :"!="
                 leaves = values.map do |v|
                     next null_check_filter(name, empty: op == :"=") if v.nil?
 
-                    compile_nested_key(name, op, v, key)
+                    compile_typed_comparison(name, op, v, key)
                 end
                 { (sequel_op == :IN ? "or" : "and") => leaves }
             end

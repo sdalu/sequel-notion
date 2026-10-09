@@ -229,8 +229,9 @@ join and both sides of a union included; the query raises
   name, with SQL's rules for `nil`.
 - **Combined queries.** `union` (with or without `all:`), `intersect` and
   `except` (without `all:`) combine the rows of two queries as SQL does;
-  `order`, `offset` and `limit` apply to the result, and a `where`,
-  `group`, `having`, `distinct` or join added to it raises.
+  `order`, `offset`, `limit` and a `select` of columns apply to the
+  result, and a `where`, `group`, `having`, `distinct` or join added to
+  it raises.
 - **Joins.** `join` and `left_join` match rows on one equality, and a
   relation matches every page it lists, so a join follows it:
 
@@ -242,7 +243,12 @@ join and both sides of a union included; the query raises
   ```
 
   Each `where` condition that tests one table runs in Notion, on that
-  table's query. A column both tables have must be qualified. Without a
+  table's query. On a left join's joined table it still filters the
+  joined rows, as SQL's `WHERE` does: a row whose partners all fail it
+  is dropped, and a row with no partner is kept only if an empty page
+  passes it (`where(Sequel[:projects][:Budget] => nil)`); that table is
+  queried twice, with and without the condition. A column both tables
+  have must be qualified. Without a
   `select`, a later table's column wins a shared name, as with SQL
   adapters.
 
@@ -426,7 +432,8 @@ believes Notion accepts. These were also checked against
   sent; aggregates, `distinct`, `DISTINCT ON`, `group`, `having`,
   `union`, `intersect` and `except` over rows with and without values;
   inner and left joins through a relation, with a `where` per side, a
-  sum and a group over them; `max_requests` stopping a join.
+  sum and a group over them; a left join's `where` on its joined table,
+  equal to a value and empty; `max_requests` stopping a join.
 - **Discovery:** search keeps listing a trashed data source, flagged
   `in_trash`.
 

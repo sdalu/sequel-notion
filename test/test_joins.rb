@@ -38,9 +38,27 @@ class TestJoins < Minitest::Test
         props = types.transform_values { { "type" => it } }
         @stubs.get("/v1/data_sources/#{id}") { json(properties: props) }
         @stubs.post("/v1/data_sources/#{id}/query") do |env|
-            @sent[id] << JSON.parse(env.body)["filter"]
-            json(results: pages.map { |pid, values| page(pid, types, values) },
+            filter = JSON.parse(env.body)["filter"]
+            @sent[id] << filter
+            kept = pages.select { |_, values| matches?(values, filter) }
+            json(results: kept.map { |pid, values| page(pid, types, values) },
                  has_more: false)
+        end
+    end
+
+    # The few filters these tests send, as Notion would apply them
+    def matches?(values, filter)
+        return true if filter.nil?
+        return filter["and"].all? { matches?(values, it) } if filter["and"]
+        return filter["or"].any? { matches?(values, it) } if filter["or"]
+
+        value   = values[filter["property"]]
+        op, arg = filter.except("property").values.first.first
+        case op
+        when "equals" then value == arg
+        when "greater_than" then !value.nil? && value > arg
+        when "is_empty" then value.nil?
+        else raise "stub filter: #{op}"
         end
     end
 
@@ -122,5 +140,26 @@ class TestJoins < Minitest::Test
         end
         assert_raises(Sequel::Error) { tasks.cross_join(:projects).all }
         assert_raises(Sequel::Error) { tasks.join(:projects, [:Name]).all }
+    end
+
+    # WHERE runs after a left join, as in SQL: a row whose partner fails
+    # it is dropped, not kept with an empty right side
+    def test_left_join_where_on_the_joined_table
+        rows = tasks.left_join(:projects, id: :Proj)
+                    .where(Sequel[:projects][:Budget] => 20)
+                    .select(Sequel[:tasks][:Name].as(:task),
+                            Sequel[:projects][:Name].as(:project))
+                    .order(:task, :project).all
+        assert_equal [%w[b Beta]], names(rows)
+    end
+
+    # A row with no partner is kept when its empty side passes
+    def test_left_join_where_empty_on_the_joined_table
+        rows = tasks.left_join(:projects, id: :Proj)
+                    .where(Sequel[:projects][:Budget] => nil)
+                    .select(Sequel[:tasks][:Name].as(:task),
+                            Sequel[:projects][:Name].as(:project))
+                    .order(:task).all
+        assert_equal [["c", nil]], names(rows)
     end
 end

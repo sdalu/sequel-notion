@@ -63,4 +63,17 @@ class TestCompounds < Minitest::Test
     def test_compound_with_a_where_raises
         assert_raises(Sequel::Error) { ns(1).union(ns(2)).where(N: 1).all }
     end
+
+    # A select on the result projects the combined rows
+    def test_compound_select
+        both = @db[:t].client_side.where(N: 1).select(:N, :Name)
+                      .union(@db[:t].client_side.where(N: 2).select(:N, :Name))
+        assert_equal [{ name: "n0" }, { name: "n1" }, { name: "n2" }],
+                     both.select(Sequel[:Name].as(:name)).order(:Name).all
+        assert_equal [1, 2], ns(1).union(ns(2)).select_map(:N)
+        assert_equal %i[name], both.select(Sequel[:Name].as(:name)).columns
+        assert_raises(Sequel::Error) do
+            ns(1).union(ns(2)).select(:Name).all
+        end
+    end
 end

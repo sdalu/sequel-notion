@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "sequel/notion/filter_nested"
 require "sequel/notion/filter_tables"
 
 module Sequel
@@ -7,6 +8,10 @@ module Sequel
         # Predicate compilers mixed into FilterCompiler: emptiness checks,
         # IS / IS NOT, bare checkbox columns, and IN / NOT IN. All private.
         module FilterPredicates
+            # Keys whose IN goes value by value: nested, or a date, which
+            # has no does_not_equal
+            IN_BY_VALUE = (FilterNested::NESTED_KEYS + ["date"]).freeze
+
             private
 
             # ----------------------------------------------------------
@@ -52,20 +57,24 @@ module Sequel
                 )
             end
 
-            # A formula takes its boolean through the nested checkbox key
+            # A checkbox, or a formula through its nested checkbox key, as
+            # for a bare column
             def compile_is_boolean(name, negated, value)
                 type = lookup_type!(name)
-                key  = filter_key_for!(name, type)
-                if key == "formula"
+                case filter_key_for!(name, type)
+                when "checkbox"
+                    op = negated ? "does_not_equal" : "equals"
+                    { "property" => name, "checkbox" => { op => value } }
+                when "formula"
                     op = negated ? :"!=" : :"="
-                    return compile_formula_comparison(name, op, value)
+                    compile_formula_comparison(name, op, value)
+                else raise boolean_type_error(name, type, value)
                 end
+            end
 
-                op = negated ? "does_not_equal" : "equals"
-                op = equal_to_contains(op) if contains_type?(key)
-                ensure_supported!(name, key, op)
-
-                { "property" => name, key => { op => value } }
+            def boolean_type_error(name, type, value)
+                Sequel::Error.new("'#{name}' IS #{value}: a checkbox or " \
+                                  "formula property only, got type '#{type}'")
             end
 
             def contains_type?(key)
@@ -104,8 +113,8 @@ module Sequel
                 validate_in_array!(value, name)
 
                 key = filter_key_for!(name, lookup_type!(name))
-                return nested_in(expr.op, name, value, key) if
-                    FilterNested::NESTED_KEYS.include?(key)
+                return in_by_value(expr.op, name, value, key) if
+                    IN_BY_VALUE.include?(key)
 
                 base_op = in_base_operator(expr.op, key)
                 ensure_supported!(name, key, base_op)

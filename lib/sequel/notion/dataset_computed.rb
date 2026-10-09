@@ -60,7 +60,7 @@ module Sequel
             end
 
             def computed_columns
-                return compound_inner.columns if compound?
+                return compound_columns if compound?
                 return grouped_outputs.map(&:first) if @opts[:group]
 
                 join_columns_out(join_sources) if joined?

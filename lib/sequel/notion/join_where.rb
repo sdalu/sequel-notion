@@ -10,8 +10,49 @@ module Sequel
         # unqualified column belongs to the one source whose schema has
         # it. A condition testing one source runs in Notion, on it; one
         # testing two has no Notion filter and raises.
+        #
+        # WHERE runs after the join. On an inner join, filtering a side
+        # first gives the same rows; on a left join it does not, since a
+        # row whose partner fails the condition would be kept with an
+        # empty side. So a left join's own conditions filter its partners
+        # after matching on the whole table, and a row with no partner is
+        # kept only if an empty page passes them, as NULLs do in SQL.
         module JoinWhere
             private
+
+            def left_joined(rows, left, right, source, wheres)
+                name, = source
+                index = join_index(source_rows(source, {}), right)
+                kept  = source_rows(source, wheres).to_set { it[:id] }
+                rows.flat_map do |row|
+                    found = partners(row, *left, index)
+                    next empty_side(row, source, wheres) if found.empty?
+
+                    found.select { kept.include?(it[:id]) }
+                         .map { row.merge(name => it) }
+                end
+            end
+
+            def empty_side(row, (name, table), wheres)
+                cond   = wheres[name].reduce(db[table]) { |ds, c| ds.where(c) }
+                filter = FilterCompiler.for(db, db.data_source_id_for(table))
+                                       .compile(cond.opts[:where])
+                empty_match?(filter) ? [row.merge(name => nil)] : []
+            end
+
+            # Whether an empty page passes a compiled filter: only an
+            # is_empty test does (negations carry is_not_empty)
+            def empty_match?(filter)
+                return filter["and"].all? { empty_match?(it) } if filter["and"]
+                return filter["or"].any? { empty_match?(it) } if filter["or"]
+
+                empty_test?(filter)
+            end
+
+            def empty_test?(value)
+                value.is_a?(Hash) && (value.key?("is_empty") ||
+                                      value.values.any? { empty_test?(it) })
+            end
 
             # name => the conditions to send with that source's query
             def split_where(sources)

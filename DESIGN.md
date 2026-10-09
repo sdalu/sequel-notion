@@ -86,13 +86,27 @@ equality with it matches every id it lists: that is what makes
 groups read columns under hidden names (`:__value`, `:__c0`), so a
 qualified column keeps its table through them.
 
+Sending a condition with its table's query is `WHERE` on an inner join,
+but on a left join it is `ON`: a row whose partner fails it was kept,
+its joined side empty. A left join's own conditions therefore filter
+its partners after matching: the table is queried whole to find each
+row's partners, and with the conditions to know which pass. A row with
+no partner is kept if an empty page passes the compiled filter, which
+only an `is_empty` test does, negations carrying `is_not_empty`: SQL's
+rule for a `NULL` row, decided by the same filter Notion runs, rather
+than by a Ruby evaluator of Sequel expressions that would have to
+reproduce every Notion operator. Raising on such a `where` was
+rejected: `left_join(...).where(right: nil)` is the usual anti-join,
+and the second query is the whole cost.
+
 What neither Notion nor Ruby computes raises instead of being dropped:
 locks (on every path, the computed ones included), raw SQL (`with_sql`),
 right, full and cross joins, a join `ON` other than one equality, a
 `where` condition testing two joined tables, `INTERSECT ALL` and
 `EXCEPT ALL`, and a `where`, `group`, `having`, `distinct` or join added
-to a combined query. A query that silently returns the wrong rows
-is worse than one that refuses to run.
+to a combined query. A `select` added to one projects the combined
+rows, since `select_map` and `get` add one. A query that silently
+returns the wrong rows is worse than one that refuses to run.
 
 ## Where expressions are compiled
 

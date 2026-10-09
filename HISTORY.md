@@ -92,3 +92,12 @@ row of the data source in memory. The claim was wrong: a group needs one
 running value per aggregate, not its rows, so memory grows with the
 number of groups. Grouping is now computed in Ruby behind `client_side`
 (`GroupAccumulator`).
+
+## Refusing a `select` on a combined query
+
+A `select` added to a `union` was ignored, so `union(...).select(:Name)`
+returned the inner columns unchanged. Adding `select` to the clauses a
+combined query refuses, beside `where` and `group`, broke `select_map`
+and `get`, which work by adding a `select` and had been right whenever
+the column was in the inner rows. The outer `select` now projects the
+combined rows instead.

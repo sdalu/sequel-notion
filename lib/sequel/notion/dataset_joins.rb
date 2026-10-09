@@ -58,19 +58,32 @@ module Sequel
 
             def joined(rows, clause, (name, table), wheres)
                 left, right = join_columns(clause, name)
-                index = Hash.new { |h, k| h[k] = [] }
-                source_rows([name, table], wheres).each do |row|
-                    join_keys(row[right]).each { index[it] << row }
+                if clause.join_type != :inner && wheres[name]
+                    return left_joined(rows, left, right, [name, table],
+                                       wheres)
                 end
+
+                index = join_index(source_rows([name, table], wheres), right)
                 rows.flat_map { matched(it, left, index, clause, name) }
             end
 
+            def join_index(rows, right)
+                index = Hash.new { |h, k| h[k] = [] }
+                rows.each do |row|
+                    join_keys(row[right]).each { index[it] << row }
+                end
+                index
+            end
+
             def matched(row, (table, column), index, clause, name)
-                found = join_keys(row[table]&.[](column))
-                        .flat_map { index[it] }.uniq
+                found = partners(row, table, column, index)
                 return found.map { row.merge(name => it) } unless found.empty?
 
                 clause.join_type == :inner ? [] : [row.merge(name => nil)]
+            end
+
+            def partners(row, table, column, index)
+                join_keys(row[table]&.[](column)).flat_map { index[it] }.uniq
             end
 
             # [[left source, column], right column] of an ON a = b
