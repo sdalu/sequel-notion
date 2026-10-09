@@ -198,10 +198,17 @@ module Sequel
                 raise Sequel::Error, "invalid file URL: #{@url.inspect}"
             end
 
-            # The URL's last path segment, or the URL when it has none
+            # The URL's last path segment, decoded ("a%20b.pdf" is
+            # "a b.pdf"; one that does not decode stays as it is), or the
+            # URL when it has none
             def default_name(uri)
                 base = ::File.basename(uri.path.to_s)
-                ["", "/"].include?(base) ? @url : base
+                return @url if ["", "/"].include?(base)
+
+                name = URI.decode_uri_component(base)
+                name.valid_encoding? ? name : base
+            rescue ArgumentError
+                base
             end
 
             def to_notion_file

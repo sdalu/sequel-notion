@@ -300,7 +300,8 @@ checkbox, `null` otherwise.
   ISO 8601 string, and raises on anything else.
 - **Relations and people** read back in full: a page lists at most 25,
   and the rest is fetched from Notion for the columns a query selects.
-- **Files**: an unnamed file is named after the URL's last path segment;
+- **Files**: an unnamed file is named after the URL's last path segment,
+  decoded (`a%20b.pdf` names it `a b.pdf`);
   a file of a type the adapter does not know reads back with its `raw`
   hash and is written back unchanged.
 - **Rollups** read as their value: a number, a date, or an `Array` of

@@ -368,6 +368,19 @@ class TestTypeMap < Minitest::Test
         assert_includes error.message, '"F"'
     end
 
+    # The name is the segment decoded; one that does not decode is kept
+    def test_file_name_is_the_decoded_path_segment
+        {
+            "https://x.test/d/a%20b+c%C3%A9.pdf" => "a b+cé.pdf",
+            "https://x.test/plain.pdf" => "plain.pdf",
+            "https://x.test/100%25.pdf" => "100%.pdf",
+            "https://x.test/bad%FF.pdf" => "bad%FF.pdf"
+        }.each do |url, name|
+            assert_equal name,
+                         Sequel::Notion::File.external(url).to_notion["name"]
+        end
+    end
+
     def test_file_url_with_no_path_is_named_by_the_url
         %w[https://ex.com/ https://ex.com].each do |url|
             name = Sequel::Notion::File.external(url).to_notion["name"]

@@ -173,6 +173,8 @@
 - A date filter value that is not a `Date`, `Time`, `DateTime` or ISO
   8601 string raises instead of being sent as its `to_s`
   (`where(Due: 123)` sent `"123"`).
+- A file named after its URL takes the path segment decoded (`a b.pdf`,
+  not `a%20b.pdf`); a segment that does not decode is kept as it is.
 - A model keeps an Integer given to a number column (`rec.N = 5` is
   `5`, as a read gives back) instead of Sequel's float typecast turning
   it into `5.0`.
