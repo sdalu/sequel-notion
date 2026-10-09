@@ -80,7 +80,8 @@ module Sequel
             def notion_page_size
                 offset = @opts[:offset] || 0
                 want   = @opts[:limit] && (@opts[:limit] + offset)
-                [want || PAGE_SIZE, PAGE_SIZE].min
+                [want || PAGE_SIZE, @opts[:notion_page_size] || PAGE_SIZE,
+                 PAGE_SIZE].min
             end
 
             # ----------------------------------------------------------

@@ -118,7 +118,9 @@ Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
 not properties Notion can sort by.
 `offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
-paginated automatically.
+paginated automatically. `paged_each` follows Notion's cursor, as
+Sequel's cursor adapters do: it needs no order, sends one request per
+`rows_per_fetch` rows (at most 100), and ignores `:strategy`.
 
 `where(id: "…")` or `where(id: [...])` fetches those pages directly,
 including pages in the trash (`:in_trash` says so). An id may be written
@@ -190,10 +192,13 @@ The primary key is `:id`. A `save` of a loaded record sends only the
 columns that changed, as `update` and `save_changes` do: a row reads
 back partial values (a date's start, the first 25 relations or people,
 rich text as plain text), and writing the whole row back would make
-the loss permanent. Computed properties are marked `generated` in the
-schema, for Sequel's `skip_saving_columns` plugin. Date
-columns are not typecast, so a `Time` or a `Range` reaches Notion as
-given.
+the loss permanent. Notion cannot sort by page id, so a model adds no
+primary key order: `Task.paged_each` streams in Notion's order, and
+`Task.last` needs an explicit one, `Task.order(:Name).last`, or raises
+Sequel's `No order specified`. Computed properties are marked
+`generated` in the schema, for Sequel's `skip_saving_columns` plugin.
+Date columns are not typecast, so a `Time` or a `Range` reaches Notion
+as given.
 
 Notion has no transactions: `DB.transaction` runs its block, swallows
 `Sequel::Rollback` (re-raised with `rollback: :reraise`), and rolls nothing
@@ -246,7 +251,8 @@ in Notion.
   page creation with the `data_source_id` parent; writing, reading back
   and clearing every writable type; trashing and restoring; and a
   `Sequel::Model` create, update and destroy, and a `save` of a loaded
-  record keeping a date range's end and its relations; and that search keeps
+  record keeping a date range's end and its relations; `paged_each`
+  following the cursor with a `page_size` below 100; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
 

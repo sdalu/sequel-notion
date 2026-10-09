@@ -21,6 +21,15 @@ and deletes go through `where(id:)`. The dataset's own helpers are named
 `each_notion_page` and `notion_page_size`, so Sequel's pagination
 extension, which defines `each_page`, can sit on top.
 
+Notion sorts by a property or a timestamp, never by page id, so ordering
+by `:id` raises, and `ModelOrderSupport` stops a model from adding its
+primary key order to `last` and `paged_each`. Mapping `:id` to the
+creation time or to a `unique_id` property was rejected: it reads one
+column as another, and creation times tie. `paged_each` streams through
+Notion's cursor instead of Sequel's `OFFSET` pages, which the adapter
+can only honour by re-reading every page skipped; Sequel's postgres
+adapter does the same through `use_cursor`, which needs no order.
+
 Clauses Notion cannot express (`join`, `group`, `having`, `distinct`,
 unions, locks) raise instead of being dropped. A query that silently
 returns the wrong rows is worse than one that refuses to run.

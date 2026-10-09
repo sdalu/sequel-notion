@@ -30,7 +30,19 @@ module Sequel
             end
         end
 
+        # Notion cannot sort by page id: a model over a Notion dataset
+        # adds no primary key order, so paged_each streams in Notion's
+        # order and last needs an explicit one.
+        module ModelOrderSupport
+            private
+
+            def _primary_key_order
+                super unless is_a?(Notion::Dataset)
+            end
+        end
+
         Sequel::Model::ClassMethods.prepend(ModelSupport)
+        Sequel::Model::DatasetMethods.prepend(ModelOrderSupport)
         Sequel::Model::InstanceMethods.prepend(ModelSaveSupport)
     end
 end

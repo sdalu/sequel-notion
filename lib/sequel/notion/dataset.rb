@@ -33,6 +33,18 @@ module Sequel
                 each_notion_page { yield project(TypeMap.page_to_row(it), sel) }
             end
 
+            # Streams through Notion's cursor, as cursor adapters do: no
+            # order needed, one request per page of rows_per_fetch (at
+            # most 100). Sequel's :strategy, which pages by OFFSET or by
+            # filtering on the order columns, does not apply.
+            def paged_each(opts = OPTS, &)
+                return enum_for(:paged_each, opts) unless block_given?
+
+                size = opts[:rows_per_fetch]
+                (size ? clone(notion_page_size: size) : self).each(&)
+                self
+            end
+
             def count(*args, &block)
                 if !args.empty? || block
                     raise Error, "Notion datasets only count rows"

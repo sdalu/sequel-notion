@@ -109,6 +109,17 @@ class TestSequelApi < Minitest::Test
         assert_equal ["Name"], @sent.last["properties"].keys
     end
 
+    # Notion cannot sort by page id, so a model adds no primary key
+    # order: paged_each streams, last needs an explicit order
+    def test_model_adds_no_primary_key_order
+        klass = model
+        assert_equal ["a"], klass.paged_each.map(&:Name)
+        error = assert_raises(Sequel::Error) { klass.last }
+        assert_equal "No order specified", error.message
+        assert_raises(Sequel::Error) { klass.order(:id).last }
+        assert_equal "a", klass.order(:Name).last.Name
+    end
+
     def test_model_keeps_time_and_ranges_for_dates
         klass = model
         due = Time.new(2026, 10, 9, 12, 0, 0, "+02:00")

@@ -86,6 +86,11 @@
   a range's end, the other relations and the formatting.
 - `order(:id)` and `order(:in_trash)` raise `Sequel::Error` instead of
   sending a sort Notion rejects with a 400.
+- `paged_each` streams through Notion's cursor, needing no order and one
+  request per page, instead of OFFSET pages that re-read every page
+  before them. A model adds no primary key order, so `Task.paged_each`
+  works and `Task.last` raises Sequel's `No order specified` instead of
+  "Notion cannot sort by id".
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
   instead of sending a date Notion rejects (checked live).
 

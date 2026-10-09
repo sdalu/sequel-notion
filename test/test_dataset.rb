@@ -67,6 +67,38 @@ class TestDataset < Minitest::Test
         assert_equal 2, @calls.size
     end
 
+    def five_pages
+        serve_query(%w[a b c d e].map { page("p#{it}", it) })
+    end
+
+    # paged_each follows Notion's cursor: no order needed, one request
+    # per page, never an offset that re-reads the pages before it
+    def test_paged_each_streams_through_the_cursor
+        five_pages
+        names = []
+        ds = @db[:tasks].paged_each { names << it[:Name] }
+        assert_kind_of Sequel::Notion::Dataset, ds
+        assert_equal %w[a b c d e], names
+        assert_equal 3, @calls.size
+        assert(@calls.none? { it.key?("sorts") })
+    end
+
+    def test_paged_each_keeps_order_and_limit
+        five_pages
+        ds = @db[:tasks].order(:Name).limit(3)
+        assert_equal(%w[a b c], ds.paged_each.map { it[:Name] })
+        assert_equal [{ "property" => "Name", "direction" => "ascending" }],
+                     @calls.first["sorts"]
+    end
+
+    def test_paged_each_rows_per_fetch_sets_the_page_size
+        five_pages
+        @db[:tasks].paged_each(rows_per_fetch: 2) { nil }
+        @db[:tasks].paged_each(rows_per_fetch: 500, strategy: :filter) { nil }
+        assert_equal([2, 100],
+                     [@calls.first, @calls.last].map { it["page_size"] })
+    end
+
     def test_get_returns_the_selected_column
         three_pages
         assert_equal "a", @db[:tasks].get(:Name)
