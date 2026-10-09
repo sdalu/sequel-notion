@@ -18,7 +18,8 @@ class TestFilterCompiler < Minitest::Test
         "Select" => "select",
         "Status" => "status",
         "People" => "people",
-        "Rel" => "relation"
+        "Rel" => "relation",
+        "UID" => "unique_id"
     }.freeze
 
     def setup
@@ -719,6 +720,34 @@ class TestFilterCompiler < Minitest::Test
     def test_too_many_clauses_raise
         conds = %i[N Select Status Url Email Name].to_h { [it, "1"] }
         expr  = @db[:t].where(Done: true).exclude(conds).opts[:where]
+        assert_raises(Sequel::Error) { compile(expr) }
+    end
+
+    # A unique id filters on its number, given bare or as displayed
+    def test_unique_id_compares_its_number
+        { 62 => 62, "62" => 62, "TK-62" => 62 }.each do |given, number|
+            expr = @db[:t].where(UID: given).opts[:where]
+            assert_equal(leaf("UID", "unique_id", "equals" => number),
+                         compile(expr))
+        end
+        expr = @db[:t].where(Sequel[:UID] >= "TK-3").opts[:where]
+        assert_equal(leaf("UID", "unique_id",
+                          "greater_than_or_equal_to" => 3), compile(expr))
+    end
+
+    # Never empty, so a negation needs no guard
+    def test_unique_id_not_equal_has_no_guard
+        expr = @db[:t].exclude(UID: 5).opts[:where]
+        assert_equal(leaf("UID", "unique_id", "does_not_equal" => 5),
+                     compile(expr))
+    end
+
+    def test_unique_id_refuses_other_values
+        ["TK-", "x", 1.5].each do |bad|
+            expr = @db[:t].where(UID: bad).opts[:where]
+            assert_raises(Sequel::Error) { compile(expr) }
+        end
+        expr = @db[:t].where(Sequel.like(:UID, "TK%")).opts[:where]
         assert_raises(Sequel::Error) { compile(expr) }
     end
 

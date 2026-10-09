@@ -104,6 +104,13 @@
 - A relation Notion lists only 25 of (flagged `has_more`), or 25 people,
   is read in full from the page property endpoint, for the columns a
   query returns (checked live with 26 relations).
+- A date with an end reads back as a `Range` of the two ISO 8601
+  strings, which a write takes as is, instead of its start alone.
+- A unique ID reads back as Notion shows it (`"TK-62"`) instead of a
+  raw hash, and filters and sorts: `where(ID: "TK-62")`, `ID > 3`,
+  `order(:ID)` (checked live).
+- Formula negations need no guard: Notion already excludes an empty
+  formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
   instead of sending a date Notion rejects (checked live).
 

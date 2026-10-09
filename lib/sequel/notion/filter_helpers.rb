@@ -115,12 +115,23 @@ module Sequel
                 Float(value)
             end
 
+            # A unique id's number, given bare or as displayed ("TK-62")
+            def unique_id_value!(value)
+                return value if value.is_a?(Integer)
+
+                number = value.to_s[/\A(?:[A-Za-z][\w-]*-)?(\d+)\z/, 1]
+                return number.to_i if value.is_a?(String) && number
+
+                raise Sequel::Error, "not a unique id: #{value.inspect}"
+            end
+
             def coerce_value(value, key)
                 case key
                 when "date"
                     value.respond_to?(:iso8601) ? value.iso8601 : value.to_s
                 when "checkbox" then boolean_value!(value)
                 when "number" then number_value!(value)
+                when "unique_id" then unique_id_value!(value)
                 else
                     value.to_s
                 end

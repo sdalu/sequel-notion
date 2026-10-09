@@ -24,7 +24,8 @@ module Sequel
                 "people" => :extract_people,
                 "relation" => :extract_relation,
                 "formula" => :extract_formula,
-                "files" => :extract_files
+                "files" => :extract_files,
+                "unique_id" => :extract_unique_id
             }.freeze
 
             def extract_rich_text(prop)
@@ -39,8 +40,21 @@ module Sequel
                 prop["multi_select"]&.map { it["name"] }
             end
 
+            # The start, or a Range of Strings when there is an end: the
+            # Range a write takes
             def extract_date(prop)
-                prop.dig("date", "start")
+                date = prop["date"] || {}
+                return date["start"] unless date["end"]
+
+                date["start"]..date["end"]
+            end
+
+            # As Notion displays it: "TK-62", or "62" with no prefix
+            def extract_unique_id(prop)
+                id = prop["unique_id"] || {}
+                return if id["number"].nil?
+
+                [id["prefix"], id["number"]].compact.join("-")
             end
 
             def extract_people(prop)

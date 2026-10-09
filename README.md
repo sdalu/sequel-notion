@@ -97,7 +97,12 @@ DB[:tasks].where(Status: "In Progress", Done: false)
 Each row has `:id` (the page id), `:in_trash`, and one key per property,
 named as in Notion (`:"Due Date"` for a property with a space). A property
 named `id` or `in_trash` would hide the page's own column, so a data
-source that has one raises; rename the property in Notion.
+source that has one raises; rename the property in Notion. A date reads
+back as its ISO 8601 start, or as a `Range` of the two strings when it has
+an end, which a write takes back as is; a unique ID as Notion shows it,
+`"TK-62"`; title and rich text as plain text; select and status as the
+option name; multi-select, people and relation as an `Array` of names or
+ids; files as `Sequel::Notion::File`s.
 
 | Sequel                                  | Notion filter                              |
 |-----------------------------------------|--------------------------------------------|
@@ -110,6 +115,7 @@ source that has one raises; rename the property in Notion.
 | `Sequel.like(:P, "%")` (wildcards only) | `is_not_empty` (`is_empty` for `NOT LIKE`) |
 | multi-select, people, relation `=`      | `contains`                                 |
 | formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
+| unique id `=`, `<`, …                   | `unique_id` on its number, given as `62` or `"TK-62"` |
 | `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
 
 Negations follow SQL, where `!=` never matches `NULL`: Notion's
@@ -198,11 +204,12 @@ Task[task.id].delete
 
 The primary key is `:id`. A `save` of a loaded record sends only the
 columns that changed, as `update` and `save_changes` do: a row reads
-back partial values (a date's start, rich text as plain text), and
-writing the whole row back would make the loss permanent. Notion cannot sort by page id, so a model adds no
-primary key order: `Task.paged_each` streams in Notion's order, and
-`Task.last` needs an explicit one, `Task.order(:Name).last`, or raises
-Sequel's `No order specified`. Sequel's `paged_operations` plugin pages
+back rich text as plain text, and writing the whole row back would
+make the loss permanent. Notion cannot sort by page id, so a model adds
+no primary key order: `Task.paged_each` streams in Notion's order, and
+`Task.last` needs an explicit one, or raises Sequel's `No order
+specified`. A unique ID property gives one in creation order:
+`Task.order(:ID).last`. Sequel's `paged_operations` plugin pages
 by primary key ranges, so it raises on a Notion model. Computed
 properties are marked `generated` in the schema, for Sequel's
 `skip_saving_columns` plugin. Date columns are not typecast, so a `Time`
@@ -247,8 +254,7 @@ in Notion.
   wildcard or a `%` in the middle raises. Notion's own case rules apply to
   both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
   Notion matches whole values only, so a pattern with any `%` raises.
-- Dates read back as the ISO 8601 `start` string; the `end` of a range is
-  dropped. Rollups and unique ids read back as Notion's raw hashes.
+- Rollups read back as Notion's raw hashes.
 - A page lists at most 25 relations or people; a row's relation flagged
   `has_more`, or 25 people (Notion flags none), is completed from the
   page property endpoint, page by page, for the columns a
@@ -265,7 +271,9 @@ in Notion.
   record keeping a date range's end and its relations; `paged_each`
   following the cursor with a `page_size` below 100; negated filters
   excluding empty values, and filters merged or distributed to two
-  levels; a relation of 26 pages read in full; and that search keeps
+  levels; a relation of 26 pages read in full; a date range read back
+  as a `Range` and written back; unique ID filters and sorts; formula
+  negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
 

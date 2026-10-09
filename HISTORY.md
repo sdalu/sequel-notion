@@ -77,3 +77,10 @@ Negated filters were first sent as Notion's `does_not_equal` and
 (DESIGN.md). Guarding each leaf where it was compiled was not enough:
 `NOT (N != 1)` negated the guard into `is_empty`, so the guard is added
 once the filter is finished.
+
+## A date read as its start
+
+A date first read back as its `start` string only, so a range lost its
+end on read, and a model's full save wrote that loss back to Notion. A
+date with an end now reads as a `Range` of the two strings, which the
+write path already took.

@@ -63,8 +63,9 @@ matches a `NULL` (checked live: Notion's `does_not_equal` and
 each such leaf once the filter is finished: negation has to run first,
 or `NOT (N != 1)` would negate the guard into `is_empty`. Following
 Notion's rule instead was rejected: a Sequel user reads `exclude` as
-SQL, and the date `!=` already followed SQL. Formula leaves are left
-unguarded, since the emptiness of a formula result is not checked.
+SQL, and the date `!=` already followed SQL. Formula and unique ID
+leaves need no guard: Notion leaves an empty formula result out of its
+negations (checked live), and a unique ID is never empty.
 
 The guard adds a level, and Notion nests `and`/`or` two levels deep at
 most, so `FilterShape` merges an `and` inside an `and` and distributes a
@@ -103,9 +104,8 @@ Computed properties are refused on write, and the schema marks them
 `generated`, which is what Sequel's `skip_saving_columns` plugin reads.
 That keeps the refusal for an explicit write. A model's `save` of a
 loaded record sends only the changed columns (`ModelSaveSupport`), not
-Sequel's default of every column: a row reads back partial values (a
-date's start, plain text), and writing them back unchanged
-would destroy the rest. Date columns get the schema type `:notion_date`, for which
+Sequel's default of every column: a row reads rich text back as plain
+text, and writing it back unchanged would destroy the formatting. Date columns get the schema type `:notion_date`, for which
 Sequel has no typecast, because `:date` or `:datetime` would drop the time
 or force one. Numbers other than Integer and Float are sent as Float,
 because JSON would otherwise carry a BigDecimal or Rational as a string.

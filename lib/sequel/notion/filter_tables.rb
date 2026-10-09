@@ -43,7 +43,8 @@ module Sequel
                 "people" => "people",
                 "relation" => "relation",
                 "files" => "files",
-                "formula" => "formula"
+                "formula" => "formula",
+                "unique_id" => "unique_id"
             }.freeze
 
             RICH_TEXT_OPS = %w[equals does_not_equal contains does_not_contain
@@ -70,7 +71,10 @@ module Sequel
                                is_not_empty],
                 "relation" => %w[contains does_not_contain is_empty
                                  is_not_empty],
-                "files" => %w[is_empty is_not_empty]
+                "files" => %w[is_empty is_not_empty],
+                "unique_id" => %w[equals does_not_equal greater_than less_than
+                                  greater_than_or_equal_to
+                                  less_than_or_equal_to]
             }.freeze
 
             DATE_OPERATOR_MAP = {

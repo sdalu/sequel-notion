@@ -12,8 +12,9 @@ module Sequel
         module FilterNulls
             NEGATIVE_OPS = %w[does_not_equal does_not_contain].freeze
 
-            # Never empty (checkbox), or emptiness unknown (formula)
-            UNGUARDED = %w[checkbox formula].freeze
+            # Never empty (checkbox, unique_id), or already excluding
+            # empty results (formula, checked live)
+            UNGUARDED = %w[checkbox unique_id formula].freeze
 
             private
 
