@@ -29,7 +29,9 @@ module Sequel
             private
 
             def count_rows
-                return to_enum(:distinct_rows).count if @opts[:distinct]
+                if @opts[:group] || @opts[:distinct]
+                    return to_enum(:fetch_rows, select_sql).count
+                end
 
                 n = 0
                 each_notion_page { n += 1 }

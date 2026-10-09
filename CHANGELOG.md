@@ -121,6 +121,10 @@
 - `sum`, `avg`, `min`, `max`, `count(:col)` and `distinct` work, computed
   in Ruby over the rows the query returns, with SQL's rules for `nil` and
   for `distinct` before `limit` (checked live).
+- `group`, `group_and_count` and `select_group` work with `count`,
+  `sum`, `avg`, `min` and `max`, computed in Ruby with one running value
+  per group; `order`, `offset` and `limit` apply to the groups (checked
+  live). `HAVING` still raises.
 - Formula negations need no guard: Notion already excludes an empty
   formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,

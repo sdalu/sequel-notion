@@ -84,8 +84,7 @@ class TestAggregates < Minitest::Test
         assert_equal 3, ds.select(:N).distinct.count
     end
 
-    def test_distinct_on_and_grouping_still_raise
+    def test_distinct_on_still_raises
         assert_raises(Sequel::Error) { ds.distinct(:N).all }
-        assert_raises(Sequel::Error) { ds.group(:Kind).all }
     end
 end

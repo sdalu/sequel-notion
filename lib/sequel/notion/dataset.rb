@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "sequel/notion/dataset_aggregates"
+require "sequel/notion/dataset_grouping"
 require "sequel/notion/dataset_pages"
 require "sequel/notion/dataset_selection"
 require "sequel/notion/dataset_truncation"
@@ -10,11 +11,14 @@ module Sequel
     module Notion
         class Dataset < Sequel::Dataset
             include DatasetAggregates
+            include DatasetGrouping
             include DatasetPages
             include DatasetSelection
             include DatasetTruncation
 
             def columns
+                return grouped_outputs.map(&:first) if @opts[:group]
+
                 selection&.map(&:last) || db.schema(source_table).map(&:first)
             end
 
@@ -33,6 +37,7 @@ module Sequel
                     raise Error, "Notion datasets take no SQL"
                 end
 
+                return grouped_rows { yield it } if @opts[:group]
                 return distinct_rows { yield it } if @opts[:distinct]
 
                 sel = selection

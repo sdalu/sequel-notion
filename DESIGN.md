@@ -36,8 +36,11 @@ are computed in Ruby over the rows the query returns, as `offset` and
 matching row, which the README states. The `where` still runs in Notion.
 Requiring an explicit opt-in for them was the alternative; it was not
 taken, so that Sequel's own calls (`Model.sum`, `select_map` on a
-`distinct`) work as written. Grouping and joins stay refused: they would
-hold every row of one or two data sources in memory.
+`distinct`) work as written. `group` is computed the same way, each
+group keeping one running value per aggregate (`GroupAccumulator`)
+rather than its rows, so memory grows with the groups, not the rows.
+Joins stay refused: they would hold one data source's rows in memory
+and Sequel's join API assumes SQL table aliasing.
 
 Clauses Notion cannot express (`join`, `group`, `having`, `DISTINCT ON`,
 unions, locks) raise instead of being dropped. A query that silently
