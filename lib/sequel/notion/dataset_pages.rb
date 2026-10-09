@@ -10,7 +10,7 @@ module Sequel
         # query, or a GET per page when WHERE pins the page id.
         module DatasetPages
             # Clauses Notion cannot express; refused rather than ignored
-            UNSUPPORTED = %i[join group having distinct compounds lock].freeze
+            UNSUPPORTED = %i[join group having compounds lock].freeze
 
             PAGE_SIZE = 100
 

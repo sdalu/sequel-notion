@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "sequel/notion/dataset_aggregates"
 require "sequel/notion/dataset_pages"
 require "sequel/notion/dataset_selection"
 require "sequel/notion/dataset_truncation"
@@ -8,6 +9,7 @@ require "sequel/notion/type_map"
 module Sequel
     module Notion
         class Dataset < Sequel::Dataset
+            include DatasetAggregates
             include DatasetPages
             include DatasetSelection
             include DatasetTruncation
@@ -31,6 +33,8 @@ module Sequel
                     raise Error, "Notion datasets take no SQL"
                 end
 
+                return distinct_rows { yield it } if @opts[:distinct]
+
                 sel = selection
                 each_notion_page do |page|
                     row = TypeMap.page_to_row(complete_page(page, sel))
@@ -48,16 +52,6 @@ module Sequel
                 size = opts[:rows_per_fetch]
                 (size ? clone(notion_page_size: size) : self).each(&)
                 self
-            end
-
-            def count(*args, &block)
-                if !args.empty? || block
-                    raise Error, "Notion datasets only count rows"
-                end
-
-                n = 0
-                each_notion_page { n += 1 }
-                n
             end
 
             def empty? = limit(1).first.nil?

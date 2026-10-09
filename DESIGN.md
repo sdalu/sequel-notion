@@ -30,7 +30,16 @@ Notion's cursor instead of Sequel's `OFFSET` pages, which the adapter
 can only honour by re-reading every page skipped; Sequel's postgres
 adapter does the same through `use_cursor`, which needs no order.
 
-Clauses Notion cannot express (`join`, `group`, `having`, `distinct`,
+Aggregates (`sum`, `avg`, `min`, `max`, `count(:col)`) and `distinct`
+are computed in Ruby over the rows the query returns, as `offset` and
+`count` already were: the result is SQL's, and the cost is reading every
+matching row, which the README states. The `where` still runs in Notion.
+Requiring an explicit opt-in for them was the alternative; it was not
+taken, so that Sequel's own calls (`Model.sum`, `select_map` on a
+`distinct`) work as written. Grouping and joins stay refused: they would
+hold every row of one or two data sources in memory.
+
+Clauses Notion cannot express (`join`, `group`, `having`, `DISTINCT ON`,
 unions, locks) raise instead of being dropped. A query that silently
 returns the wrong rows is worse than one that refuses to run.
 

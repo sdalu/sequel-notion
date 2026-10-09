@@ -118,6 +118,9 @@
 - `where(F: nil)` on a formula or a rollup is `is_empty` instead of
   raising: Notion checks a formula's emptiness whatever its result type
   (checked live on string and number formulas).
+- `sum`, `avg`, `min`, `max`, `count(:col)` and `distinct` work, computed
+  in Ruby over the rows the query returns, with SQL's rules for `nil` and
+  for `distinct` before `limit` (checked live).
 - Formula negations need no guard: Notion already excludes an empty
   formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,

@@ -132,6 +132,10 @@ too many is distributed (`(a & b) | c` becomes `(a | c) & (b | c)`, up to
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
 Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
 not properties Notion can sort by.
+`sum`, `avg`, `min`, `max` and `count(:col)` skip `nil`s and give `nil`
+over no value, and `distinct` drops repeated rows before `offset` and
+`limit`, as in SQL; Notion computes none of them, so they are worked out
+in Ruby over every row the query returns.
 `offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
 paginated automatically. `paged_each` follows Notion's cursor, as
@@ -247,8 +251,10 @@ in Notion.
 
 ## Known shortfalls
 
-- No joins, grouping, `distinct`, unions, raw SQL (`with_sql`), or
-  aggregates other than `count`. Each raises.
+- No joins, grouping, unions, `DISTINCT ON` or raw SQL (`with_sql`).
+  Each raises.
+- `sum`, `avg`, `min`, `max`, `count(:col)` and `distinct` are computed
+  in Ruby, so they read every row the query returns (100 per request).
 - Filters compare a property with a value, never with another property or
   an expression.
 - `offset` and `count` fetch the pages they skip or count.
@@ -278,7 +284,7 @@ in Notion.
   as a `Range` and written back; unique ID filters and sorts; rollups of
   a number, dates and titles read as values; filters and sorts on a sum
   rollup; `nil` filters on string and number formulas and a sum rollup;
-  formula
+  aggregates and `distinct` over rows with and without values; formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
