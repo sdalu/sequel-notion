@@ -47,6 +47,9 @@
 - `LIKE` with a wildcard on a multi-select, people or relation property
   raises: Notion's `contains` there matches a whole value, so `"%ruby%"`
   silently matched only the option `ruby`.
+- With `auto_register`, two data sources sharing a name no longer break
+  every lookup: only that name raises, until `register_data_source`
+  picks one, and a data source id resolves without discovery.
 
 ## 0.1.0
 

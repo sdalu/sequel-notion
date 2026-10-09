@@ -11,6 +11,10 @@ module Sequel
 
             UUID = /\A\h{8}-?\h{4}-?\h{4}-?\h{4}-?\h{12}\z/
 
+            # A discovered name that several data sources share: looking
+            # it up raises, until a registration picks one
+            Ambiguous = Data.define(:ids)
+
             # The table name a data source title maps to: accents dropped
             # from Latin letters only, letters of other scripts kept
             def self.normalize(title)
@@ -47,15 +51,17 @@ module Sequel
 
             def data_source_id_for(table_name)
                 name = table_name.to_sym
-                registry_fetch(name) ||
-                    (auto_register? && registry_fetch(name)) ||
+                resolved(name, registry_fetch(name)) ||
                     (name.match?(UUID) && name.to_s) ||
+                    (auto_register? && resolved(name, registry_fetch(name))) ||
                     search_data_source(name)
             end
 
             def tables
                 auto_register?
-                Sequel.synchronize { registry.keys }
+                Sequel.synchronize do
+                    registry.reject { |_, id| id.is_a?(Ambiguous) }.keys
+                end
             end
 
             private
@@ -76,9 +82,18 @@ module Sequel
                 Sequel.synchronize { bind(registry, name, id) }
             end
 
+            def resolved(name, id)
+                return id unless id.is_a?(Ambiguous)
+
+                raise Error, "data source name #{name} is ambiguous " \
+                             "(#{id.ids.join(", ")}): register one"
+            end
+
+            # A registration may resolve an ambiguous name, never rebind
+            # one already bound
             def bind(map, name, id)
                 old = map[name]
-                if old && old != id
+                if old && old != id && !old.is_a?(Ambiguous)
                     raise Error, "data source name #{name} already maps " \
                                  "to #{old}, not #{id}"
                 end
@@ -86,7 +101,9 @@ module Sequel
             end
 
             # Discover every data source once, when auto_register is set;
-            # true when it is set. As Sequel does for its schema cache, the
+            # true when it is set. A name two sources share is marked
+            # ambiguous rather than failing the others, and a name already
+            # registered is kept. As Sequel does for its schema cache, the
             # flag is set only once discovery has succeeded, and no lock is
             # held across the requests: a concurrent lookup repeats the
             # discovery rather than read a registry half filled, and a
@@ -95,10 +112,22 @@ module Sequel
                 return false unless opts[:auto_register]
 
                 unless Sequel.synchronize { @auto_registered }
-                    register_all_data_sources
+                    discover_data_sources
                     Sequel.synchronize { @auto_registered = true }
                 end
                 true
+            end
+
+            def discover_data_sources
+                found = data_sources.group_by { source_name(it, nil) }
+                Sequel.synchronize do
+                    found.each do |name, sources|
+                        next if registry[name] in String
+
+                        ids = sources.map { it[:id] }.uniq
+                        registry[name] = ids.one? ? ids.first : Ambiguous[ids]
+                    end
+                end
             end
 
             # Fallback: search by name, and remember what was found

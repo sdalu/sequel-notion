@@ -152,6 +152,66 @@ class TestRegistry < Minitest::Test
         assert_equal %i[my_tasks], db.tables
     end
 
+    # An auto_register database whose search returns these [id, title]
+    # sources, counting its searches in @searches
+    def auto_registering(*sources)
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.post("/v1/search") do
+            @searches += 1
+            json(results: sources.map { |id, title| source(id, title) },
+                 has_more: false)
+        end
+        Sequel.connect(adapter: :notion, token: "t", test: false,
+                       auto_register: true, faraday_adapter: [:test, stubs])
+    end
+
+    CLASH = [%w[s1 Tasks], %w[s2 tasks], %w[s3 Bills]].freeze
+
+    def test_a_discovered_clash_spares_the_other_names
+        db = auto_registering(*CLASH)
+        assert_equal "s3", db.data_source_id_for(:bills)
+        assert_equal "s3", db.data_source_id_for(:bills)
+        assert_equal 1, @searches
+    end
+
+    def test_an_id_needs_no_discovery
+        id = "0123456789abcdef0123456789abcdef"
+        assert_equal id, auto_registering(*CLASH).data_source_id_for(id)
+        assert_equal 0, @searches
+    end
+
+    def test_a_discovered_clash_raises_naming_both_sources
+        db = auto_registering(*CLASH)
+        error = assert_raises(Sequel::Error) { db.data_source_id_for(:tasks) }
+        assert_includes error.message, "s1, s2"
+    end
+
+    def test_registering_a_clashing_name_resolves_it
+        db = auto_registering(*CLASH)
+        db.tables
+        db.register_data_source(:tasks, "s2")
+        assert_equal "s2", db.data_source_id_for(:tasks)
+    end
+
+    def test_discovery_keeps_an_explicit_name
+        db = auto_registering(*CLASH)
+        db.register_data_source(:bills, "mine")
+        db.register_data_source(:tasks, "s1")
+        assert_equal %i[bills tasks], db.tables.sort
+        assert_equal "mine", db.data_source_id_for(:bills)
+        assert_equal "s1", db.data_source_id_for(:tasks)
+    end
+
+    def test_tables_omit_a_clashing_name
+        assert_equal %i[bills], auto_registering(*CLASH).tables
+    end
+
+    def test_register_all_still_refuses_a_clash
+        db = searching(*CLASH)
+        assert_raises(Sequel::Error) { db.register_all_data_sources }
+        assert_empty db.tables
+    end
+
     def test_unknown_table_raises
         assert_nil @db.data_source_id_for(:nothing_here)
         assert_raises(Sequel::Error) { @db[:nothing_here].all }

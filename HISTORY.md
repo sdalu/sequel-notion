@@ -40,6 +40,16 @@ after the discovery succeeds (see DESIGN.md);
 `test_tables_never_answer_from_a_discovery_in_flight` holds a discovery
 open in one thread and asks from another.
 
+## Discovery as an all-or-nothing bulk registration
+
+`auto_register` first ran `register_all_data_sources`, which refuses
+the whole set when two sources share a name. In a workspace where two
+data sources normalised to `property`, every lookup raised, including a
+data source id and every unrelated name, and each one repeated the full
+search. Discovery now marks only the shared name ambiguous, and an id
+resolves before discovery (see DESIGN.md).
+`test_a_discovered_clash_spares_the_other_names` holds it.
+
 ## Putting `:id` first in selected rows
 
 Selected rows used to carry `:id` first, so that `update` and `delete`

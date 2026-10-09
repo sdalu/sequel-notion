@@ -53,10 +53,10 @@ A table name is resolved to a data source id in this order:
 
 1. a name registered with `register_data_source` or
    `register_all_data_sources`;
-2. with `auto_register: true`, every data source the token can see,
-   discovered once;
-3. a table name that is itself a data source id (32 hex digits, dashes
+2. a table name that is itself a data source id (32 hex digits, dashes
    optional);
+3. with `auto_register: true`, every data source the token can see,
+   discovered once;
 4. a search for a data source whose title normalises to the table
    name. The result is remembered; two matching data sources raise.
 
@@ -75,7 +75,11 @@ DB.data_sources(query: "Bills") # => [{id:, name:, parent_database_id:, ...}]
 ```
 
 A name already bound to a different data source raises an error rather than
-being rebound.
+being rebound, and `register_all_data_sources` then registers none of the
+names it found. Discovery is more lenient: a name two data sources share
+is left out of `tables` and raises when it is looked up, until
+`register_data_source` picks one; the other names register as usual, and
+discovery keeps a name already registered.
 
 
 ## Reading

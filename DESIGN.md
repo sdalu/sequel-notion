@@ -93,21 +93,32 @@ back.
 ## Table names
 
 `Registry` resolves a table name to a data source id: explicit
-registration, then one-time discovery (`auto_register`), then an id used
-directly, then a search. All of these name data sources through the same
-`Registry.normalize`, so a search and a bulk registration agree on what
-`"My Tasks"` is called. Rebinding a name to a different id raises,
-because two Notion sources that normalise alike would otherwise shadow
-each other silently. For the same reason, a search that finds two sources
-under one name raises instead of taking the first.
+registration, then an id used directly, then one-time discovery
+(`auto_register`), then a search. An id comes before discovery so that
+it never waits on, or fails with, a listing it does not need. All of
+these name data sources through the same `Registry.normalize`, so a
+search and a bulk registration agree on what `"My Tasks"` is called.
+Rebinding a name to a different id raises, because two Notion sources
+that normalise alike would otherwise shadow each other silently. For the
+same reason, a search that finds two sources under one name raises
+instead of taking the first.
+
+Discovery applies that rule per name, as Go does for an ambiguous
+selector and Java for a simple name two on-demand imports provide: the
+error comes where the shared name is used, not where it is declared. A
+name two discovered sources share is stored as `Registry::Ambiguous`,
+which raises on lookup and is left out of `tables`; every other name
+registers. A registration may replace that marker, and discovery never
+overwrites a name already registered: an explicit binding is a choice,
+not a shadow. An explicit `register_all_data_sources` stays all or
+nothing, because its caller named the set and can pass a mapper.
 
 `normalize` drops combining marks only after a Latin letter, where they
 are accents (`É` → `e`). In other scripts a mark changes the letter
 (Japanese `ガ` against `カ`, Cyrillic `й` against `и`), so those titles keep
 their marks and their letters. A title with nothing left after
 normalising is named by its id, because an empty name would match every
-other empty one. Bulk registration validates every name before
-storing any, and a discovery that fails is retried on the next lookup.
+other empty one. A discovery that fails is retried on the next lookup.
 
 Discovery follows Sequel's own schema cache: check the flag under
 `Sequel.synchronize`, run the requests with no lock held, and set the
