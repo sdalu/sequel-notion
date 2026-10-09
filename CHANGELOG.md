@@ -91,6 +91,16 @@
   before them. A model adds no primary key order, so `Task.paged_each`
   works and `Task.last` raises Sequel's `No order specified` instead of
   "Notion cannot sort by id".
+- Negations follow SQL: `exclude(N: 1)`, `NOT LIKE` and `NOT IN` no
+  longer match pages where the property is empty, as Notion's
+  `does_not_equal` and `does_not_contain` did, and as the date `!=`
+  already did not (checked live).
+- A raw `NOT` over a date equality is `before or after` instead of a
+  `does_not_equal` Notion rejects.
+- Filters nested deeper than Notion's two levels are merged or
+  distributed into clauses, so `where(a).exclude(b: 1, c: 2)` and
+  `where(a).where((b & c) | d)` work; what cannot fit raises instead of
+  a 400.
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
   instead of sending a date Notion rejects (checked live).
 

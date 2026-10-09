@@ -40,18 +40,33 @@ module Sequel
                 inner_key = inner.keys.first
                 cond = inner[inner_key]
                 op = cond.keys.first
-                new_op = negated_operator!(op, filter["property"])
+                if inner_key == "date" && op == "equals"
+                    return formula_date_not_equal(filter["property"], cond[op])
+                end
 
+                new_op = negated_operator!(op, filter["property"])
                 { "property" => filter["property"],
                   "formula" => { inner_key => { new_op => cond[op] } } }
             end
 
             def negate_simple_leaf(filter, type_key, inner)
                 op = inner.keys.first
+                # Notion's date has no does_not_equal (rule D)
+                if type_key == "date" && op == "equals"
+                    return date_not_equal_filter(filter["property"], inner[op])
+                end
+
                 new_op = negated_operator!(op, filter["property"])
 
                 { "property" => filter["property"],
                   type_key => { new_op => inner[op] } }
+            end
+
+            def formula_date_not_equal(name, value)
+                { "or" => %w[before after].map do |op|
+                    { "property" => name,
+                      "formula" => { "date" => { op => value } } }
+                end }
             end
 
             def negated_operator!(op, property)

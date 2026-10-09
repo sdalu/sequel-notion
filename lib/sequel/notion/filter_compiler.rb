@@ -7,6 +7,8 @@ require "sequel/notion/filter_like_tokenizer"
 require "sequel/notion/filter_like"
 require "sequel/notion/filter_comparison"
 require "sequel/notion/filter_negation"
+require "sequel/notion/filter_nulls"
+require "sequel/notion/filter_shape"
 
 module Sequel
     module Notion
@@ -17,6 +19,8 @@ module Sequel
             include FilterLike
             include FilterComparison
             include FilterNegation
+            include FilterNulls
+            include FilterShape
 
             # ----------------------------------------------------------
             # Property name resolution (rule N)
@@ -42,9 +46,11 @@ module Sequel
                 @prop_types = schema
             end
 
-            def compile(expr) = compile_expr(unwrap_noop(expr))
+            def compile(expr) = notion_shape(sql_nulls(compile_node(expr)))
 
             private
+
+            def compile_node(expr) = compile_expr(unwrap_noop(expr))
 
             def compile_expr(expr)
                 case expr
@@ -72,8 +78,8 @@ module Sequel
             # Sequel's `Sequel.expr(col => nil/true/false)` form (rule I).
             def compile_boolean(expr)
                 case expr.op
-                when :AND then { "and" => expr.args.map { |a| compile(a) } }
-                when :OR then { "or" => expr.args.map { |a| compile(a) } }
+                when :AND then { "and" => expr.args.map { compile_node(it) } }
+                when :OR then { "or" => expr.args.map { compile_node(it) } }
                 when :NOT then compile_not(expr.args.first)
                 when :IS, :"IS NOT" then compile_is(expr)
                 else
@@ -87,7 +93,7 @@ module Sequel
                 if bare_column_expr?(inner)
                     compile_bare_column(inner, value: false)
                 else
-                    negate(compile(inner))
+                    negate(compile_node(inner))
                 end
             end
         end

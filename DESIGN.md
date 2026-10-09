@@ -56,6 +56,21 @@ matches `NULL`, but the adapter has no `NULL` to be faithful to, and
 passing `nil` on as a value sent `""`, which Notion matches as empty for
 some types and rejects for others (a date answers 400).
 
+Negations follow SQL's rule for empty values, where `N != 1` never
+matches a `NULL` (checked live: Notion's `does_not_equal` and
+`does_not_contain` match an empty property, while the date `!=`, written
+`before or after`, did not). `FilterNulls` adds `is_not_empty` beside
+each such leaf once the filter is finished: negation has to run first,
+or `NOT (N != 1)` would negate the guard into `is_empty`. Following
+Notion's rule instead was rejected: a Sequel user reads `exclude` as
+SQL, and the date `!=` already followed SQL. Formula leaves are left
+unguarded, since the emptiness of a formula result is not checked.
+
+The guard adds a level, and Notion nests `and`/`or` two levels deep at
+most, so `FilterShape` merges an `and` inside an `and` and distributes a
+level too many into clauses (`(a & b) | c` as `(a | c) & (b | c)`), up
+to 32 of them; deeper filters raise rather than earn a 400.
+
 A `LIKE` pattern of wildcards only matches any non-null string, which in
 Notion is `is_not_empty`; sending it as `contains ""` would leave the
 answer to whatever Notion does with an empty needle.

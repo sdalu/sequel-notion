@@ -67,3 +67,13 @@ so saving a loaded record after changing one column wrote those back,
 dropping a range's end, the other relations and the formatting. A save
 now sends only the changed columns.
 `test_model_save_writes_only_changed_columns` watches it.
+
+## Notion's rule for empty values in negations
+
+Negated filters were first sent as Notion's `does_not_equal` and
+`does_not_contain`, which match a page whose property is empty, so
+`exclude(N: 1)` returned the pages with no `N`, unlike SQL; the date
+`!=`, written `before or after`, did not. Negations now follow SQL
+(DESIGN.md). Guarding each leaf where it was compiled was not enough:
+`NOT (N != 1)` negated the guard into `is_empty`, so the guard is added
+once the filter is finished.

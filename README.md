@@ -112,6 +112,14 @@ source that has one raises; rename the property in Notion.
 | formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
 | `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
 
+Negations follow SQL, where `!=` never matches `NULL`: Notion's
+`does_not_equal` and `does_not_contain` match an empty property, so
+`exclude(N: 1)`, `NOT LIKE` and `NOT IN` add `is_not_empty` beside them
+(a checkbox is never empty and needs none). Notion nests `and`/`or` two
+levels deep at most: an `and` inside an `and` is merged into it, a level
+too many is distributed (`(a & b) | c` becomes `(a | c) & (b | c)`, up to
+32 clauses), and a filter still deeper raises.
+
 `order` maps to Notion sorts. Notion puts empty values last in both
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
 Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
@@ -252,7 +260,9 @@ in Notion.
   and clearing every writable type; trashing and restoring; and a
   `Sequel::Model` create, update and destroy, and a `save` of a loaded
   record keeping a date range's end and its relations; `paged_each`
-  following the cursor with a `page_size` below 100; and that search keeps
+  following the cursor with a `page_size` below 100; negated filters
+  excluding empty values, and filters merged or distributed to two
+  levels; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
 

@@ -294,6 +294,8 @@ class TestFilterCompiler < Minitest::Test
                     { "property" => "N",
                       "number" => { "does_not_equal" => 1 } },
                     { "property" => "N",
+                      "number" => { "is_not_empty" => true } },
+                    { "property" => "N",
                       "number" => { "does_not_equal" => 2 } },
                     { "property" => "N",
                       "number" => { "does_not_equal" => 3 } }
@@ -406,13 +408,14 @@ class TestFilterCompiler < Minitest::Test
 
     def test_not_like_negates_contains
         expr = @db[:t].exclude(Sequel.like(:Name, "%x%")).opts[:where]
-        assert_equal({ "property" => "Name", "rich_text" => { "does_not_contain" => "x" } },
+        assert_equal(not_empty("Name", "rich_text",
+                               "does_not_contain" => "x"),
                      compile(expr))
     end
 
     def test_not_like_negates_equals
         expr = @db[:t].exclude(Sequel.like(:Name, "x")).opts[:where]
-        assert_equal({ "property" => "Name", "rich_text" => { "does_not_equal" => "x" } },
+        assert_equal(not_empty("Name", "rich_text", "does_not_equal" => "x"),
                      compile(expr))
     end
 
@@ -559,7 +562,7 @@ class TestFilterCompiler < Minitest::Test
     def test_negate_equals
         inner = Sequel.expr(N: 5)
         expr = Sequel::SQL::BooleanExpression.new(:NOT, inner)
-        assert_equal({ "property" => "N", "number" => { "does_not_equal" => 5 } },
+        assert_equal(not_empty("N", "number", "does_not_equal" => 5),
                      compile(expr))
     end
 
@@ -583,14 +586,140 @@ class TestFilterCompiler < Minitest::Test
         assert_equal(
             {
                 "or" => [
-                    { "property" => "N",
-                      "number" => { "does_not_equal" => 1 } },
-                    { "property" => "Name",
-                      "rich_text" => { "does_not_equal" => "x" } }
+                    not_empty("N", "number", "does_not_equal" => 1),
+                    not_empty("Name", "rich_text", "does_not_equal" => "x")
                 ]
             },
             compile(expr)
         )
+    end
+
+    # A negated comparison under SQL's rule (E): never an empty value
+    def not_empty(name, key, cond)
+        { "and" => [{ "property" => name, key => cond },
+                    { "property" => name, key => { "is_not_empty" => true } }] }
+    end
+
+    def test_not_equal_excludes_empty_values
+        expr = @db[:t].exclude(N: 1).opts[:where]
+        assert_equal(not_empty("N", "number", "does_not_equal" => 1),
+                     compile(expr))
+        expr = @db[:t].exclude(Tags: "a").opts[:where]
+        assert_equal(not_empty("Tags", "multi_select",
+                               "does_not_contain" => "a"),
+                     compile(expr))
+    end
+
+    def test_checkbox_not_equal_needs_no_guard
+        expr = @db[:t].exclude(Done: true).opts[:where]
+        assert_equal({ "property" => "Done",
+                       "checkbox" => { "does_not_equal" => true } },
+                     compile(expr))
+    end
+
+    # The guard joins an enclosing "and" rather than nesting one more
+    def test_guard_joins_the_enclosing_and
+        expr = @db[:t].where(Name: "x").exclude(N: 1).opts[:where]
+        assert_equal(
+            { "and" => [{ "property" => "Name",
+                          "rich_text" => { "equals" => "x" } },
+                        { "property" => "N",
+                          "number" => { "does_not_equal" => 1 } },
+                        { "property" => "N",
+                          "number" => { "is_not_empty" => true } }] },
+            compile(expr)
+        )
+    end
+
+    # NOT (N != 1) is N = 1: negation runs before the guard, which would
+    # otherwise come back as is_empty
+    def test_double_negation_is_equals
+        expr = Sequel::SQL::BooleanExpression.new(:NOT, Sequel.~(N: 1))
+        assert_equal({ "property" => "N", "number" => { "equals" => 1 } },
+                     compile(expr))
+    end
+
+    # Notion's date has no does_not_equal (rule D)
+    def test_negate_date_equals
+        expr = Sequel::SQL::BooleanExpression.new(
+            :NOT, Sequel.expr(Due: Date.new(2026, 1, 1))
+        )
+        assert_equal(
+            { "or" => [{ "property" => "Due",
+                         "date" => { "before" => "2026-01-01" } },
+                       { "property" => "Due",
+                         "date" => { "after" => "2026-01-01" } }] },
+            compile(expr)
+        )
+    end
+
+    def test_negate_formula_date_equals
+        expr = Sequel::SQL::BooleanExpression.new(
+            :NOT, Sequel.expr(F: Date.new(2026, 1, 1))
+        )
+        assert_equal(
+            { "or" => %w[before after].map do |op|
+                { "property" => "F",
+                  "formula" => { "date" => { op => "2026-01-01" } } }
+            end },
+            compile(expr)
+        )
+    end
+
+    # Notion nests and/or two levels deep at most (rule K): an and in an
+    # and is spliced, a level too many is distributed, and what is
+    # still deeper raises
+    def test_and_inside_and_is_spliced
+        inner = Sequel.|({ N: 1 }, { Done: true })
+        expr  = @db[:t].where(Name: "x")
+                       .where(Sequel::SQL::BooleanExpression.new(:NOT, inner))
+                       .opts[:where]
+        assert_equal(
+            { "and" => [{ "property" => "Name",
+                          "rich_text" => { "equals" => "x" } },
+                        { "property" => "N",
+                          "number" => { "does_not_equal" => 1 } },
+                        { "property" => "N",
+                          "number" => { "is_not_empty" => true } },
+                        { "property" => "Done",
+                          "checkbox" => { "does_not_equal" => true } }] },
+            compile(expr)
+        )
+    end
+
+    def leaf(name, key, cond) = { "property" => name, key => cond }
+
+    # exclude(N: 1, Select: "a") is N != 1 OR Select != a, each guarded:
+    # an or of ands inside the and, distributed into or clauses
+    def test_or_of_ands_is_distributed
+        expr = @db[:t].where(Name: "x").exclude(N: 1, Select: "a")
+                      .opts[:where]
+        n, nn = leaf("N", "number", "does_not_equal" => 1),
+                leaf("N", "number", "is_not_empty" => true)
+        s, sn = leaf("Select", "select", "does_not_equal" => "a"),
+                leaf("Select", "select", "is_not_empty" => true)
+        assert_equal(
+            { "and" => [leaf("Name", "rich_text", "equals" => "x"),
+                        { "or" => [n, s] }, { "or" => [n, sn] },
+                        { "or" => [nn, s] }, { "or" => [nn, sn] }] },
+            compile(expr)
+        )
+    end
+
+    def test_three_levels_raise
+        deep = Sequel.|(Sequel.&({ N: 1 }, Sequel.|({ Done: true },
+                                                    { N: 3 })),
+                        { N: 2 })
+        expr = @db[:t].where(Name: "x").where(deep).opts[:where]
+        error = assert_raises(Sequel::Error) { compile(expr) }
+        assert_includes error.message, "2 levels"
+    end
+
+    # Six guarded inequalities distribute into 2**6 clauses
+    def test_too_many_clauses_raise
+        conds = %i[N Select Status Url Email Name].to_h { [it, "1"] }
+        expr  = @db[:t].where(Done: true).exclude(conds).opts[:where]
+        assert_raises(Sequel::Error) { compile(expr) }
     end
 
     def test_negate_formula_leaf
