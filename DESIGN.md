@@ -120,7 +120,8 @@ says what its author believed. `test/sql_oracle.rb` puts the same rows
 in a stubbed Notion, which filters and sorts as Notion does (an empty
 value matching `does_not_equal`, sorting last), and in an in-memory
 SQLite database. `test_sql_oracle.rb` runs aggregates, groups, `having`,
-`distinct`, compounds and joins on both, and `test_sequel_api_oracle.rb`
+`distinct`, compounds and joins, over numbers, text, dates and selects,
+on both, and `test_sequel_api_oracle.rb`
 Sequel's own dataset methods, over 25 random data sets each; both must
 agree. Restoring the left-join code this round fixed makes three of the
 oracle's queries fail. Where Notion and SQL differ by design (empty

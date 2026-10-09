@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "faraday"
+require "date"
 require "set"
 require "sequel/adapters/notion"
 
@@ -11,7 +12,8 @@ module SqlOracle
     TASKS    = "22222222-0000-0000-0000-000000000001"
     PROJECTS = "22222222-0000-0000-0000-000000000002"
     TYPES    = {
-        TASKS => { "Name" => "title", "N" => "number", "Proj" => "relation" },
+        TASKS => { "Name" => "title", "N" => "number", "Proj" => "relation",
+                   "Due" => "date", "Kind" => "select" },
         PROJECTS => { "Name" => "title", "Budget" => "number" }
     }.freeze
 
@@ -27,10 +29,15 @@ module SqlOracle
         tasks = Array.new(rnd.rand(0..9)) do |i|
             { id: uuid("cccccccc", i), Name: %w[a b c a].sample(random: rnd),
               N: [nil, 0, 1, 2, 2, 3, -1].sample(random: rnd),
-              Proj: [nil, *projects.map { it[:id] }].sample(random: rnd) }
+              Proj: [nil, *projects.map { it[:id] }].sample(random: rnd),
+              Due: DATES.sample(random: rnd),
+              Kind: [nil, "x", "y", "x", "z"].sample(random: rnd) }
         end
         { tasks:, projects: }
     end
+
+    DATES = [nil, Date.new(2026, 1, 1), Date.new(2026, 1, 2),
+             Date.new(2026, 1, 2), Date.new(2026, 2, 1)].freeze
 
     def uuid(prefix, index) = format("#{prefix}-0000-0000-0000-%012d", index)
 
@@ -41,6 +48,8 @@ module SqlOracle
             String :Name
             Integer :N
             String :Proj
+            Date :Due
+            String :Kind
         end
         db.create_table(:projects) do
             String :id
@@ -99,7 +108,7 @@ module SqlOracle
                            code: "object_not_found", message: "no page")]
         end
     end
-    
+
     def json(**body)
         [200, { "Content-Type" => "application/json" }, JSON.generate(body)]
     end
@@ -118,6 +127,11 @@ module SqlOracle
         when "relation"
             { "type" => type,
               type => Array(value).map { { "id" => it } }, "has_more" => false }
+        when "date"
+            { "type" => type,
+              type => value && { "start" => value.iso8601, "end" => nil } }
+        when "select"
+            { "type" => type, type => value && { "name" => value } }
         else { "type" => type, type => value }
         end
     end
@@ -130,8 +144,9 @@ module SqlOracle
         return filter["or"].any? { matches?(row, it) } if filter["or"]
 
         value   = row[filter["property"].to_sym]
+        value   = value.iso8601 if value.is_a?(Date)
         op, arg = filter.except("property").values.first.first
-        compare(op, value, arg)
+        compare(DATE_OPS.fetch(op, op), value, arg)
     end
 
     def compare(op, value, arg)
@@ -153,6 +168,11 @@ module SqlOracle
     OPS = { "equals" => :==, "greater_than" => :>, "less_than" => :<,
             "greater_than_or_equal_to" => :>=,
             "less_than_or_equal_to" => :<= }.freeze
+
+    # A date's operators, on ISO 8601 strings, which order as dates do
+    DATE_OPS = { "before" => "less_than", "after" => "greater_than",
+                 "on_or_before" => "less_than_or_equal_to",
+                 "on_or_after" => "greater_than_or_equal_to" }.freeze
 
     # Empty values last, in both directions
     def sorted_pages(rows, sorts)
@@ -182,6 +202,7 @@ module SqlOracle
         when Set then value.to_a.map { normal(it) }.sort_by(&:inspect)
         when Hash then value.to_h { |k, v| [normal(k), normal(v)] }
         when Numeric then value.to_f.round(9)
+        when Date then value.iso8601
         else value
         end
     end
