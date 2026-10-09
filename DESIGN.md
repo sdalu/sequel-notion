@@ -39,8 +39,12 @@ taken, so that Sequel's own calls (`Model.sum`, `select_map` on a
 `distinct`) work as written. `group` is computed the same way, each
 group keeping one running value per aggregate (`GroupAccumulator`)
 rather than its rows, so memory grows with the groups, not the rows.
-Joins stay refused: they would hold one data source's rows in memory
-and Sequel's join API assumes SQL table aliasing.
+`having` is evaluated over those groups with SQL's three-valued logic,
+an aggregate it writes out being computed as a hidden output.
+`DISTINCT ON` keeps the first row of each key; `union`, `intersect` and
+`except` read each query's rows and combine them as SQL does. Joins stay
+refused: they would hold one data source's rows in memory, and Sequel's
+join API assumes SQL table aliasing.
 
 Clauses Notion cannot express (`join`, `group`, `having`, `DISTINCT ON`,
 unions, locks) raise instead of being dropped. A query that silently

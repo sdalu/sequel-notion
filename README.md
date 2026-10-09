@@ -139,7 +139,13 @@ in Ruby over every row the query returns.
 `group(:P)` with columns it groups and `count`, `sum`, `avg`, `min` or
 `max` (`group_and_count(:Kind)`, `select_group`) works the same way,
 keeping one running value per group; `order`, `offset` and `limit` then
-apply to the groups, empty values last.
+apply to the groups, empty values last. `having` filters the groups, on
+an aggregate written out (`having { count.function.* > 1 }`) or on an
+output's name, with SQL's rules for `nil`. `distinct(:P)` keeps the
+first row of each value, in the query's order. `union` (with or without
+`all:`), `intersect` and `except` combine the rows of two queries as SQL
+does; `order`, `offset` and `limit` then apply to the result, and a
+`where` on it raises.
 `offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
 paginated automatically. `paged_each` follows Notion's cursor, as
@@ -255,11 +261,11 @@ in Notion.
 
 ## Known shortfalls
 
-- No joins, unions, `HAVING`, `DISTINCT ON` or raw SQL (`with_sql`).
+- No joins, and no raw SQL (`with_sql`): there is no SQL to run it.
   Each raises.
-- `sum`, `avg`, `min`, `max`, `count(:col)`, `distinct` and `group` are
-  computed in Ruby, so they read every row the query returns (100 per
-  request).
+- Aggregates, `distinct` (and `DISTINCT ON`), `group` and `having`, and
+  `union`, `intersect` and `except` are computed in Ruby, so they read
+  every row the queries return (100 per request).
 - Filters compare a property with a value, never with another property or
   an expression.
 - `offset` and `count` fetch the pages they skip or count.
@@ -289,7 +295,8 @@ in Notion.
   as a `Range` and written back; unique ID filters and sorts; rollups of
   a number, dates and titles read as values; filters and sorts on a sum
   rollup; `nil` filters on string and number formulas and a sum rollup;
-  aggregates, `distinct` and `group` over rows with and without values;
+  aggregates, `distinct`, `DISTINCT ON`, `group`, `having`, `union`,
+  `intersect` and `except` over rows with and without values;
   formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.

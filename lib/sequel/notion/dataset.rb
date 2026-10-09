@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "sequel/notion/dataset_aggregates"
+require "sequel/notion/dataset_compounds"
+require "sequel/notion/dataset_computed"
 require "sequel/notion/dataset_grouping"
 require "sequel/notion/dataset_pages"
 require "sequel/notion/dataset_selection"
@@ -11,21 +13,25 @@ module Sequel
     module Notion
         class Dataset < Sequel::Dataset
             include DatasetAggregates
+            include DatasetCompounds
+            include DatasetComputed
             include DatasetGrouping
             include DatasetPages
             include DatasetSelection
             include DatasetTruncation
 
             def columns
-                return grouped_outputs.map(&:first) if @opts[:group]
-
-                selection&.map(&:last) || db.schema(source_table).map(&:first)
+                computed_columns || selection&.map(&:last) ||
+                    db.schema(source_table).map(&:first)
             end
 
             def columns! = columns
 
             # Sequel renders SQL before fetching; there is none to render
-            def select_sql = "NOTION #{source_table}"
+            def select_sql = "NOTION #{compound? ? "compound" : source_table}"
+
+            # Computed in Ruby, the first row of each key
+            def supports_distinct_on? = true
 
             # Sequel's cached loaders swap WHERE for SQL placeholders,
             # which only a SQL database can fill in
@@ -37,8 +43,7 @@ module Sequel
                     raise Error, "Notion datasets take no SQL"
                 end
 
-                return grouped_rows { yield it } if @opts[:group]
-                return distinct_rows { yield it } if @opts[:distinct]
+                return computed_rows { yield it } if computed?
 
                 sel = selection
                 each_notion_page do |page|

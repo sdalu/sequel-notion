@@ -84,7 +84,11 @@ class TestAggregates < Minitest::Test
         assert_equal 3, ds.select(:N).distinct.count
     end
 
-    def test_distinct_on_still_raises
-        assert_raises(Sequel::Error) { ds.distinct(:N).all }
+    # DISTINCT ON keeps the first row of each key, in the query's order
+    def test_distinct_on
+        assert_equal %w[n0 n1 n3],
+                     ds.distinct(:Kind).select(:Name).map(:Name)
+        assert_equal [{ Kind: "x", N: 1 }, { Kind: "y", N: 2 }],
+                     ds.distinct(:Kind).select(:Kind, :N).limit(2).all
     end
 end

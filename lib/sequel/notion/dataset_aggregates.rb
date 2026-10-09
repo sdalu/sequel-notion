@@ -29,9 +29,7 @@ module Sequel
             private
 
             def count_rows
-                if @opts[:group] || @opts[:distinct]
-                    return to_enum(:fetch_rows, select_sql).count
-                end
+                return to_enum(:fetch_rows, select_sql).count if computed?
 
                 n = 0
                 each_notion_page { n += 1 }
@@ -45,15 +43,29 @@ module Sequel
                 raise Error, "cannot compute #{function} of #{arg.inspect}"
             end
 
+            def distinct_on? = !@opts[:distinct].empty?
+
+            def distinct_source(select = @opts[:select])
+                clone(distinct: nil, limit: nil, offset: nil, select:)
+                    .naked.all
+            end
+
+            def first_of_each_key
+                keys = @opts[:distinct].map { group_column(it) }
+                sel  = selection
+                distinct_source(nil).uniq { |row| keys.map { row[it] } }
+                                    .map { project(it, sel) }
+            end
+
             def column_values(arg)
                 column = FilterCompiler.property_name(arg).to_sym
                 naked.select(column).map(column).compact
             end
 
-            # Every row first, then OFFSET and LIMIT over the distinct ones
+            # Every row first, then OFFSET and LIMIT over the distinct
+            # ones; DISTINCT ON keeps the first row of each key
             def distinct_rows(&)
-                all = clone(distinct: nil, limit: nil, offset: nil)
-                rows = all.to_enum(:fetch_rows, all.select_sql).to_a.uniq
+                rows = distinct_on? ? first_of_each_key : distinct_source.uniq
                 rows = rows.drop(@opts[:offset] || 0)
                 rows = rows.take(@opts[:limit]) if @opts[:limit]
                 rows.each(&)

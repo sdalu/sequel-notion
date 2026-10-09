@@ -77,10 +77,24 @@ class TestGrouping < Minitest::Test
         assert_equal %i[Kind count], ds.group_and_count(:Kind).columns
     end
 
-    def test_ungrouped_columns_having_and_text_sums_raise
+    # HAVING filters the groups, on an aggregate written out or on an
+    # output's name, with SQL's NULL rules
+    def test_having
+        assert_equal [{ Kind: "x", count: 2 }],
+                     ds.group_and_count(:Kind)
+                       .having { count.function.* > 1 }.all
+        assert_equal [{ Kind: "x", count: 2 }],
+                     ds.group_and_count(:Kind).having(Sequel[:count] > 1).all
+        assert_equal [{ Kind: "y" }, { Kind: nil }],
+                     ds.select_group(:Kind).having { max(:N) >= 2 }.all
+        assert_equal [{ Kind: "x" }],
+                     ds.select_group(:Kind).having(Kind: %w[x z]).all
+    end
+
+    def test_ungrouped_columns_and_text_sums_raise
         assert_raises(Sequel::Error) { ds.group(:Kind).select(:N).all }
         assert_raises(Sequel::Error) do
-            ds.group_and_count(:Kind).having { count.function.* > 1 }.all
+            ds.group_and_count(:Kind).having(Sequel[:N] > 1).all
         end
         assert_raises(Sequel::Error) do
             ds.group(:N).select(:N) { sum(:Kind).as(:s) }.all
