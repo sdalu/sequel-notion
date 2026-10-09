@@ -223,8 +223,14 @@ in Notion.
   mentions, at 25 references per page. The adapter does not fetch the rest.
 - Notion's rate limit is 3 requests per second on most plans, so a large
   `update` or `delete` is slow.
-- Not yet checked against the live API: filtering a title with the
-  `rich_text` key, and the `data_source_id` parent type on page creation.
+- Checked against the live API (2026-10-09): filters on title, url and
+  email through the `rich_text` key and on created and edited times
+  through the `date` key; page lookups by id with or without dashes;
+  page creation with the `data_source_id` parent; writing, reading back
+  and clearing every writable type; trashing and restoring; and a
+  `Sequel::Model` create, update and destroy.
+- Notion counts the 2000-character limit of a text run in UTF-16 units,
+  so a title or text holding more than about 1000 emoji is rejected.
 
 
 ## License
