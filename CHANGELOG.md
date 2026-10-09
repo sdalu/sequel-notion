@@ -118,6 +118,9 @@
 - `where(F: nil)` on a formula or a rollup is `is_empty` instead of
   raising: Notion checks a formula's emptiness whatever its result type
   (checked live on string and number formulas).
+- Operations Notion does not compute (below) are computed in Ruby, only on
+  a dataset that opts in with `client_side`, which `max_requests:` can
+  cap; without it they raise before any request (checked live).
 - `sum`, `avg`, `min`, `max`, `count(:col)` and `distinct` work, computed
   in Ruby over the rows the query returns, with SQL's rules for `nil` and
   for `distinct` before `limit` (checked live).

@@ -34,9 +34,17 @@ Aggregates (`sum`, `avg`, `min`, `max`, `count(:col)`) and `distinct`
 are computed in Ruby over the rows the query returns, as `offset` and
 `count` already were: the result is SQL's, and the cost is reading every
 matching row, which the README states. The `where` still runs in Notion.
-Requiring an explicit opt-in for them was the alternative; it was not
-taken, so that Sequel's own calls (`Model.sum`, `select_map` on a
-`distinct`) work as written. `group` is computed the same way, each
+They run only on a dataset that asks with `client_side`; otherwise they
+raise before the first request. A join or a sum is written like any
+other query, and nothing in it says that it will read two whole data
+sources at 3 requests a second; the opt-in makes the caller say it, and
+a refusal costs nothing, where a query stopped halfway has already
+spent its requests. `client_side(max_requests: n)` adds a ceiling for
+the caller who wants one (`RequestBudget`): it counts every request the
+query sends, nested queries included, and raises before the one past
+it. Running them by default, as `offset` and `count` already read every
+page, was the alternative; it was rejected because the cost of a join
+or a group is not visible where it is written. `group` is computed the same way, each
 group keeping one running value per aggregate (`GroupAccumulator`)
 rather than its rows, so memory grows with the groups, not the rows.
 `having` is evaluated over those groups with SQL's three-valued logic,

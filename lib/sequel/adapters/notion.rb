@@ -11,7 +11,9 @@ require "sequel/notion/errors"
 require "sequel/notion/model_support"
 require "sequel/notion/page_api"
 require "sequel/notion/registry"
+require "sequel/notion/request_budget"
 require "sequel/notion/schema"
+require "sequel/notion/schema_lookup"
 require "sequel/notion/type_map"
 require "sequel/notion/version"
 
@@ -34,6 +36,8 @@ module Sequel
         class Database < Sequel::Database
             include PageApi
             include Registry
+            include RequestBudget
+            include SchemaLookup
 
             set_adapter_scheme :notion
 
@@ -83,17 +87,6 @@ module Sequel
             # Schema introspection
             # ----------------------------------------------------------
 
-            # Property name => Notion type, for one data source
-            def property_type_map(ds_id)
-                data_source(ds_id).transform_values { it["type"] }
-            end
-
-            # Rollup name => the kind of value it gives, for one data source
-            def rollup_kinds(ds_id)
-                data_source(ds_id).select { |_, p| p["type"] == "rollup" }
-                                  .transform_values { Schema.rollup_kind(it) }
-            end
-
             def refresh_schema!(table_name)
                 ds_id = data_source_id_for(table_name)
                 Sequel.synchronize { @data_source_cache.delete(ds_id) }
@@ -103,6 +96,7 @@ module Sequel
             # One Notion request: logged through Sequel's loggers, and any
             # HTTP failure re-raised as a Sequel::DatabaseError.
             def request(verb, path, body = nil)
+                spend_request!
                 synchronize do |conn|
                     log_connection_yield("#{verb.upcase} #{path}", conn,
                                          body && [body]) do

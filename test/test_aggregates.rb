@@ -41,7 +41,7 @@ class TestAggregates < Minitest::Test
           } }
     end
 
-    def ds = @db[:t]
+    def ds = @db[:t].client_side
 
     def test_sum_min_max_avg_skip_nulls
         assert_equal 5, ds.sum(:N)

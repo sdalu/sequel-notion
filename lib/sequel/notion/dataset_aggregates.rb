@@ -23,7 +23,10 @@ module Sequel
                     raise Error, "Notion datasets count rows or one column"
                 end
 
-                args.empty? ? count_rows : column_values(args.first).size
+                return budgeted { count_rows } if args.empty?
+
+                client_side!("count(#{args.first.inspect})")
+                budgeted { column_values(args.first).size }
             end
 
             private
@@ -38,7 +41,9 @@ module Sequel
 
             # Sequel's sum, avg, min and max all land here
             def _aggregate(function, arg)
-                AGGREGATES.fetch(function).call(column_values(arg))
+                client_side!(function.to_s)
+                values = budgeted { column_values(arg) }
+                AGGREGATES.fetch(function).call(values)
             rescue TypeError, ArgumentError
                 raise Error, "cannot compute #{function} of #{arg.inspect}"
             end

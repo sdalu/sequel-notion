@@ -7,6 +7,10 @@ module Sequel
         # A model over a Notion dataset is never simple, so those go
         # through where(id: ...) like any other query.
         module ModelSupport
+            # The model's dataset, allowing what Notion cannot compute to
+            # be computed in Ruby: Task.client_side.sum(:Hours)
+            def client_side(...) = dataset.client_side(...)
+
             private
 
             def convert_input_dataset(source)

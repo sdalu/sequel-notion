@@ -40,18 +40,12 @@ module Sequel
             def supports_placeholder_literalizer? = false
 
             # Rows, auto-paginated, honouring LIMIT, OFFSET and SELECT
-            def fetch_rows(sql)
+            def fetch_rows(sql, &)
                 if @opts[:sql] || sql != select_sql
                     raise Error, "Notion datasets take no SQL"
                 end
 
-                return computed_rows { yield it } if computed?
-
-                sel = selection
-                each_notion_page do |page|
-                    row = TypeMap.page_to_row(complete_page(page, sel))
-                    yield project(row, sel)
-                end
+                budgeted { computed? ? computed_rows(&) : page_rows(&) }
             end
 
             # Streams through Notion's cursor, as cursor adapters do: no
@@ -111,6 +105,17 @@ module Sequel
             end
 
             private
+
+            def page_rows
+                sel = selection
+                each_notion_page do |page|
+                    yield project(TypeMap.page_to_row(complete_page(page, sel)),
+                                  sel)
+                end
+            end
+
+            # One query's requests, under client_side's max_requests
+            def budgeted(&) = db.with_request_budget(@opts[:max_requests], &)
 
             def source_table
                 from = @opts[:from]

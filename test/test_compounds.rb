@@ -39,7 +39,7 @@ class TestCompounds < Minitest::Test
           } }
     end
 
-    def ns(number) = @db[:t].where(N: number).select(:N)
+    def ns(number) = @db[:t].client_side.where(N: number).select(:N)
 
     def test_union_drops_repeats_and_all_keeps_them
         assert_equal [{ N: 1 }, { N: 2 }], ns(1).union(ns(2)).all
@@ -48,7 +48,7 @@ class TestCompounds < Minitest::Test
     end
 
     def test_intersect_and_except
-        all = @db[:t].select(:N)
+        all = @db[:t].client_side.select(:N)
         assert_equal [{ N: 2 }], all.intersect(ns(2)).all
         assert_equal [{ N: 1 }], all.except(ns(2)).all
     end

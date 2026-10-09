@@ -132,37 +132,60 @@ too many is distributed (`(a & b) | c` becomes `(a | c) & (b | c)`, up to
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
 Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
 not properties Notion can sort by.
-`sum`, `avg`, `min`, `max` and `count(:col)` skip `nil`s and give `nil`
-over no value, and `distinct` drops repeated rows before `offset` and
-`limit`, as in SQL; Notion computes none of them, so they are worked out
-in Ruby over every row the query returns.
-`group(:P)` with columns it groups and `count`, `sum`, `avg`, `min` or
-`max` (`group_and_count(:Kind)`, `select_group`) works the same way,
-keeping one running value per group; `order`, `offset` and `limit` then
-apply to the groups, empty values last. `having` filters the groups, on
-an aggregate written out (`having { count.function.* > 1 }`) or on an
-output's name, with SQL's rules for `nil`. `distinct(:P)` keeps the
-first row of each value, in the query's order. `union` (with or without
-`all:`), `intersect` and `except` combine the rows of two queries as SQL
-does; `order`, `offset` and `limit` then apply to the result, and a
-`where` on it raises.
 
-`join` and `left_join` match rows in Ruby on one equality, and a
-relation matches every page it lists, so a join follows it:
+### Computed in Ruby: `client_side`
+
+Notion computes no aggregate, `distinct`, group, join or combination of
+queries. The adapter works them out in Ruby over every row the query
+returns, at 100 rows per request and about 3 requests a second, so it
+does so only on a dataset that asks for it; otherwise such a query
+raises before sending anything:
 
 ```ruby
-DB[:tasks].join(:projects, id: :Project)
-          .where(Sequel[:projects][:Budget] > 1000)
-          .select(Sequel[:tasks][:Name].as(:task),
-                  Sequel[:projects][:Name].as(:project))
+DB[:tasks].sum(:Hours)                       # raises: needs client_side
+DB[:tasks].client_side.sum(:Hours)           # reads every task
+DB[:tasks].client_side(max_requests: 20)     # and at most 20 requests
+          .join(:projects, id: :Project).all
+Task.client_side.group_and_count(:Status).all
 ```
 
-Each `where` condition that tests one table runs in Notion, on that
-table's query. A column both tables have must be qualified. Without a
-`select`, a later table's column wins a shared name, as with SQL
-adapters.
-`offset` is applied client side, so the rows it
-skips are still fetched. `count` pages through the results. Requests are
+`max_requests` counts every request one query sends, both tables of a
+join and both sides of a union included; the query raises before the
+request past it.
+
+- `sum`, `avg`, `min`, `max` and `count(:col)` skip `nil`s and give `nil`
+  over no value; `distinct` drops repeated rows before `offset` and
+  `limit`, and `distinct(:P)` keeps the first row of each value, in the
+  query's order.
+- `group(:P)` with the columns it groups and `count`, `sum`, `avg`, `min`
+  or `max` (`group_and_count`, `select_group`) keeps one running value
+  per group; `order`, `offset` and `limit` then apply to the groups,
+  empty values last. `having` filters them, on an aggregate written out
+  (`having { count.function.* > 1 }`) or on an output's name, with SQL's
+  rules for `nil`.
+- `union` (with or without `all:`), `intersect` and `except` combine the
+  rows of two queries as SQL does; `order`, `offset` and `limit` apply to
+  the result, and a `where` on it raises.
+- `join` and `left_join` match rows on one equality, and a relation
+  matches every page it lists, so a join follows it:
+
+  ```ruby
+  DB[:tasks].client_side.join(:projects, id: :Project)
+            .where(Sequel[:projects][:Budget] > 1000)
+            .select(Sequel[:tasks][:Name].as(:task),
+                    Sequel[:projects][:Name].as(:project))
+  ```
+
+  Each `where` condition that tests one table runs in Notion, on that
+  table's query. A column both tables have must be qualified. Without a
+  `select`, a later table's column wins a shared name, as with SQL
+  adapters.
+
+### Paging
+
+`offset` is applied after the fact, so the rows it skips are still
+fetched, and `count` pages through the results; neither needs
+`client_side`. Requests are
 paginated automatically. `paged_each` follows Notion's cursor, as
 Sequel's cursor adapters do: it needs no order, sends one request per
 `rows_per_fetch` rows (at most 100), and ignores `:strategy`.
@@ -281,7 +304,8 @@ in Notion.
   condition testing two tables, raise.
 - Joins, aggregates, `distinct` (and `DISTINCT ON`), `group` and
   `having`, and `union`, `intersect` and `except` are computed in Ruby,
-  so they read every row the queries return (100 per request).
+  only under `client_side`, and read every row the queries return (100
+  per request).
 - Filters compare a property with a value, never with another property or
   an expression.
 - `offset` and `count` fetch the pages they skip or count.

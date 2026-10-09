@@ -57,7 +57,7 @@ class TestJoins < Minitest::Test
         end
     end
 
-    def tasks = @db[:tasks]
+    def tasks = @db[:tasks].client_side
 
     def names(rows) = rows.map { it.values_at(:task, :project) }
 

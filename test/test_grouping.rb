@@ -43,7 +43,7 @@ class TestGrouping < Minitest::Test
           } }
     end
 
-    def ds = @db[:t]
+    def ds = @db[:t].client_side
 
     def test_group_and_count
         assert_equal [{ Kind: "x", count: 2 }, { Kind: "y", count: 1 },
