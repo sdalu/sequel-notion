@@ -68,9 +68,15 @@ requests. Running computed operations by default, as `offset` and
 
 `client_side(max_requests: n)` adds a ceiling for a caller who wants
 one, and accepting a stop in the middle of a query is that caller's
-choice. `RequestBudget` counts every request the query sends, nested
-queries included (both tables of a join, both sides of a union, the
-schema fetch), and raises before the request past it.
+choice. `RequestBudget` counts every request of the query that Notion
+answers with a 200, nested queries included (both tables of a join,
+both sides of a union, the schema fetch), and raises before the request
+past it. The count is taken above faraday-retry, after the answer: a
+429 is Notion asking the client to wait, not work the query did, so the
+attempts a retry absorbs spend nothing, and neither does a request that
+fails (a page by id that is gone). Counting every HTTP attempt was
+rejected: a throttled query would then fail on Notion's load rather than
+on its own size.
 
 `group` keeps one running value per aggregate per group
 (`GroupAccumulator`) rather than the group's rows, so memory grows with

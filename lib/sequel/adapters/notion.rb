@@ -94,13 +94,15 @@ module Sequel
             end
 
             # One Notion request: logged through Sequel's loggers, and any
-            # HTTP failure re-raised as a Sequel::DatabaseError.
+            # HTTP failure re-raised as a Sequel::DatabaseError. Only its
+            # 200 spends the query's budget, after the retries.
             def request(verb, path, body = nil)
-                spend_request!
-                synchronize do |conn|
-                    log_connection_yield("#{verb.upcase} #{path}", conn,
-                                         body && [body]) do
-                        conn.public_send(verb, path, body).body
+                within_budget do
+                    synchronize do |conn|
+                        log_connection_yield("#{verb.upcase} #{path}", conn,
+                                             body && [body]) do
+                            conn.public_send(verb, path, body).body
+                        end
                     end
                 end
             rescue Faraday::Error => e

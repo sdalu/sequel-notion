@@ -212,9 +212,11 @@ query ──▸ needs Ruby? ── no ──▸ Notion: where → filter, order 
                 then order, offset and limit
 ```
 
-`max_requests` counts every request one query sends, both tables of a
-join and both sides of a union included; the query raises
-`Sequel::Error` before the request past it.
+`max_requests` counts every request of one query that Notion answers
+with a 200, both tables of a join and both sides of a union included; a
+rate-limited attempt the adapter retries, or a request that fails (a
+page gone), counts nothing. The query raises `Sequel::Error` before the
+request past it.
 
 - **Aggregates.** `sum`, `avg`, `min`, `max` and `count(:col)` skip
   `nil`s and give `nil` over no value.

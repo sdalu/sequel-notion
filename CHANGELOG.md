@@ -82,7 +82,9 @@
 - Operations Notion does not compute itself (joins, groups, aggregates,
   `distinct`, unions and the like) are computed in Ruby, only on a
   dataset that opts in with `client_side`, which `max_requests:` can
-  cap; without it they raise before any request (checked live).
+  cap, counting the requests Notion answers with a 200 (a rate-limited
+  attempt or a failed request counts nothing); without it they raise
+  before any request (checked live).
 
 ### Fixed
 

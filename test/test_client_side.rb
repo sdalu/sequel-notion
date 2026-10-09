@@ -101,6 +101,47 @@ class TestClientSide < Minitest::Test
         assert_equal 4, @queries
     end
 
+    # Only a successful request counts: the rate-limited attempts a retry
+    # absorbs do not
+    def test_max_requests_skips_rate_limited_attempts
+        limited = 0
+        stubs   = Faraday::Adapter::Test::Stubs.new
+        stubs.get("/v1/data_sources/#{DS_ID}") do
+            json(properties: { "N" => { "type" => "number" } })
+        end
+        stubs.post("/v1/data_sources/#{DS_ID}/query") do
+            limited += 1
+            next json(results: [], has_more: false) if limited > 2
+
+            [429, { "Content-Type" => "application/json",
+                    "Retry-After" => "0" },
+             JSON.generate(object: "error", status: 429, code: "rate_limited")]
+        end
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_data_source(:t, DS_ID)
+        db.schema(:t)
+        assert_equal 0, db[:t].client_side(max_requests: 1).sum(:N).to_i
+        assert_equal 3, limited
+    end
+
+    # Nor does a failed one: a page that is gone (404) is skipped
+    def test_max_requests_skips_failed_requests
+        gone = "99999999-0000-0000-0000-000000000000"
+        here = "88888888-0000-0000-0000-000000000000"
+        @stubs.get("/v1/pages/#{gone.delete("-")}") do
+            [404, { "Content-Type" => "application/json" },
+             JSON.generate(object: "error", status: 404,
+                           code: "object_not_found")]
+        end
+        @stubs.get("/v1/pages/#{here.delete("-")}") do
+            json(object: "page", id: here, in_trash: false, properties: {},
+                 parent: { type: "data_source_id", data_source_id: DS_ID })
+        end
+        rows = ds.client_side(max_requests: 1).where(id: [gone, here]).all
+        assert_equal [here], rows.map { it[:id] }
+    end
+
     def test_max_requests_also_bounds_plain_reads
         @pages = 3
         assert_raises(Sequel::Error) { ds.client_side(max_requests: 2).all }
