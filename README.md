@@ -436,7 +436,8 @@ believes Notion accepts. These were also checked against
   or distributed to two levels; unique ID filters and sorts; filters and
   sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
   string and number formulas and on both rollups.
-- **Dates:** a time written to a date property kept to the minute.
+- **Dates:** a time written to a date property kept to the minute; an
+  open range (`d..`) and `{start:}` both clearing a range's end.
 - **Checkboxes:** sorted `false` first, `true` first descending.
 - **Files:** a Notion-hosted file read from a page and written back
   unchanged, signed URL included, kept by Notion.

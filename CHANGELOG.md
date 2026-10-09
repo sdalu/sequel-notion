@@ -173,6 +173,8 @@
 - A date filter value that is not a `Date`, `Time`, `DateTime` or ISO
   8601 string raises instead of being sent as its `to_s`
   (`where(Due: 123)` sent `"123"`).
+- A negative unique ID in a filter (`where(ID: -5)`) raises, as a
+  negative `"-5"` already did.
 - `where(P: [])` matches no page and sends no request, and
   `exclude(P: [])` matches every page, as with Sequel's SQL adapters,
   instead of raising; inside `and`, `or` and `NOT` they fold away.

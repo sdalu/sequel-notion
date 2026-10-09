@@ -130,7 +130,7 @@ module Sequel
 
             # A unique id's number, given bare or as displayed ("TK-62")
             def unique_id_value!(value)
-                return value if value.is_a?(Integer)
+                return value if value.is_a?(Integer) && !value.negative?
 
                 number = value.to_s[/\A(?:[A-Za-z][\w-]*-)?(\d+)\z/, 1]
                 return number.to_i if value.is_a?(String) && number

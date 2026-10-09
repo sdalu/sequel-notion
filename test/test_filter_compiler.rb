@@ -991,4 +991,16 @@ class TestFilterCompiler < Minitest::Test
             assert_match message, error.message
         end
     end
+    # A unique ID's number is never negative, given bare or displayed
+    def test_negative_unique_id_raises
+        [-5, "-5"].each do |bad|
+            assert_raises(Sequel::Error, bad.inspect) do
+                compile(@db[:t].where(UID: bad).opts[:where])
+            end
+        end
+        assert_equal(
+            { "property" => "UID", "unique_id" => { "equals" => 0 } },
+            compile(@db[:t].where(UID: 0).opts[:where])
+        )
+    end
 end
