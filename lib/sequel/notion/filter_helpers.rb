@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "date"
+
 require "sequel/notion/filter_tables"
 require "sequel/notion/type_map"
 
@@ -125,10 +127,18 @@ module Sequel
                 raise Sequel::Error, "not a unique id: #{value.inspect}"
             end
 
+            # A Date, Time or DateTime, or an ISO 8601 string
+            def date_value!(value)
+                return value.iso8601 if value.respond_to?(:iso8601)
+                return value if value.is_a?(String) &&
+                                !Date._iso8601(value).empty?
+
+                raise Sequel::Error, "not a date: #{value.inspect}"
+            end
+
             def coerce_value(value, key)
                 case key
-                when "date"
-                    value.respond_to?(:iso8601) ? value.iso8601 : value.to_s
+                when "date" then date_value!(value)
                 when "checkbox" then boolean_value!(value)
                 when "number" then number_value!(value)
                 when "unique_id" then unique_id_value!(value)

@@ -230,8 +230,11 @@ request past it.
   written out (`having { count.function.* > 1 }`) or on an output's
   name, with SQL's rules for `nil`.
 - **Combined queries.** `union` (with or without `all:`), `intersect` and
-  `except` (without `all:`) combine the rows of two queries as SQL does;
-  `order`, `offset`, `limit` and a `select` of columns apply to the
+  `except` (without `all:`) combine the rows of two queries as SQL does:
+  the result takes the first query's column names, the other's values
+  matched by position, and queries selecting a different number of
+  columns raise. `order`, `offset`, `limit` and a `select` of columns
+  apply to the
   result, and a `where`, `group`, `having`, `distinct` or join added to
   it raises.
 - **Joins.** `join` and `left_join` match rows on one equality, and a
@@ -291,7 +294,10 @@ checkbox, `null` otherwise.
   date ranges include their end, so an exclusive range `d1...d2` ends on
   the day before `d2`; it must then end on a `Date`, and an exclusive
   `Time` range raises. A range needs a start: `d1..` leaves the end
-  open, and `..d2` raises, as does a `Hash` with no `:start`.
+  open, and `..d2` raises, as does a `Hash` with no `:start`. Notion
+  keeps a time to the minute: `10:20:30.123` reads back as `10:20:00`
+  (checked live). A date filter takes a `Date`, `Time`, `DateTime` or
+  ISO 8601 string, and raises on anything else.
 - **Relations and people** read back in full: a page lists at most 25,
   and the rest is fetched from Notion for the columns a query selects.
 - **Files**: an unnamed file is named after the URL's last path segment;
@@ -368,7 +374,8 @@ back. `rollback: :always` raises, since every write would be kept.
 `generated: true`. It is cached per data source. `DB.table_exists?`
 answers by resolving the name and fetching the data source. Call
 `DB.refresh_schema!(:tasks)` after changing the data source's properties
-in Notion.
+in Notion; every name of that data source (an alias, its id) sees the
+change.
 
 
 ## Errors, retries and logging
@@ -423,6 +430,7 @@ believes Notion accepts. These were also checked against
   or distributed to two levels; unique ID filters and sorts; filters and
   sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
   string and number formulas and on both rollups.
+- **Dates:** a time written to a date property kept to the minute.
 - **Pages:** lookups by id with or without dashes; creation with the
   `data_source_id` parent; writing, reading back and clearing every
   writable type; trashing and restoring; a relation of 26 pages read in

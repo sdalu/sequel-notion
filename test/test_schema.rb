@@ -43,4 +43,23 @@ class TestSchema < Minitest::Test
     def json(**body)
         [200, { "Content-Type" => "application/json" }, JSON.generate(body)]
     end
+
+    # Every name of a data source sees a property added in Notion after
+    # one refresh: an alias, and the id used as a table name
+    def test_refresh_schema_covers_every_name
+        props = { "Name" => { "type" => "title" } }
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.get("/v1/data_sources/#{DS_ID}") { json(properties: props) }
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_data_source(:tasks, DS_ID)
+        db.register_data_source(:todo, DS_ID)
+        names = [:tasks, :todo, DS_ID.to_sym]
+        names.each { db.schema(it) }
+        props = props.merge("Due" => { "type" => "date" })
+        db.refresh_schema!(:tasks)
+        names.each do |name|
+            assert_includes db.schema(name).map(&:first), :Due, name.to_s
+        end
+    end
 end

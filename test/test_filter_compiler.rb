@@ -944,4 +944,18 @@ class TestFilterCompiler < Minitest::Test
             assert_raises(Sequel::Error) { compile(expr) }
         end
     end
+
+    # A date filter takes a date, a time or an ISO 8601 string
+    def test_non_date_value_raises
+        [123, [1, 2], "not a date", :x].each do |bad|
+            assert_raises(Sequel::Error, bad.inspect) do
+                compile(@db[:t].where(Due: bad).opts[:where])
+            end
+        end
+        assert_equal(
+            { "property" => "Due", "date" => { "equals" => "2026-01-01" } },
+            compile(@db[:t].where(Due: "2026-01-01").opts[:where])
+        )
+        assert_raises(Sequel::Error) { rollup(Last: 123) }
+    end
 end

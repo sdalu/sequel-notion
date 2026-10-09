@@ -65,6 +65,20 @@ class TestSqlOracle < Minitest::Test
                      .limit(3).offset(1).all
         },
         union_count: -> { ns(it, 0).union(ns(it, 2)).count },
+        union_renamed: lambda {
+            it[:tasks].select(:Name, :N)
+                      .union(it[:tasks].select(Sequel[:Name].as(:x),
+                                               Sequel[:N].as(:y))).all
+        },
+        intersect_renamed: lambda {
+            it[:tasks].where(Sequel[:N] > 0).select(:Name, :N)
+                      .intersect(it[:tasks].select(Sequel[:Name].as(:x),
+                                                   Sequel[:N].as(:y))).all
+        },
+        except_swapped: lambda {
+            it[:tasks].select(:Name, :Kind)
+                      .except(it[:tasks].select(:Kind, :Name)).all
+        },
         inner_join: -> { joined(it, :join).all },
         left_join: -> { joined(it, :left_join).all },
         left_join_where_left: lambda {

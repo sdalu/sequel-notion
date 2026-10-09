@@ -76,4 +76,18 @@ class TestCompounds < Minitest::Test
             ns(1).union(ns(2)).select(:Name).all
         end
     end
+
+    # As in SQL, a combination takes the first query's column names, the
+    # others' values by position
+    def test_compound_takes_the_first_query_names
+        a = @db[:t].client_side.where(N: 1).select(Sequel[:N].as(:a))
+        b = @db[:t].client_side.where(N: 2).select(Sequel[:N].as(:b))
+        assert_equal [{ a: 1 }, { a: 2 }], a.union(b).order(:a).all
+        assert_equal [{ a: 2 }], b.select(Sequel[:N].as(:a))
+                                  .intersect(b).all
+        assert_equal [], a.except(a.select(Sequel[:N].as(:z))).all
+        assert_raises(Sequel::Error) do
+            a.union(@db[:t].client_side.select(:N, :Name)).all
+        end
+    end
 end

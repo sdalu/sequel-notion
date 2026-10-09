@@ -161,6 +161,18 @@
   raise `Sequel::Error` instead of a `NoMethodError` on a missing
   `execute`; `order(Sequel.lit(...))` raises instead of sending the SQL
   as a property name.
+- A `union`, `intersect` or `except` names its columns after the first
+  query and matches the other's values by position, as SQL does: a
+  second query selecting other names used to keep them, so its rows
+  read `nil` under the first query's names, and `intersect` and
+  `except` missed equal rows. Queries selecting a different number of
+  columns raise.
+- `refresh_schema!` refreshes every name of the data source, not only
+  the one given: an alias, or the id used as a table name, kept the old
+  columns, and a `select` of a new property through it raised.
+- A date filter value that is not a `Date`, `Time`, `DateTime` or ISO
+  8601 string raises instead of being sent as its `to_s`
+  (`where(Due: 123)` sent `"123"`).
 - `exclude`, `NOT IN` and other negations on a rollup leave out pages
   whose rollup is empty, as on other properties: Notion's rollup
   `does_not_equal` matched an average over no relation (checked live).

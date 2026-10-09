@@ -83,16 +83,6 @@ module Sequel
             def supports_schema_parsing?        = true
             def supports_transaction_isolation_levels? = false
 
-            # ----------------------------------------------------------
-            # Schema introspection
-            # ----------------------------------------------------------
-
-            def refresh_schema!(table_name)
-                ds_id = data_source_id_for(table_name)
-                Sequel.synchronize { @data_source_cache.delete(ds_id) }
-                remove_cached_schema(table_name)
-            end
-
             # One Notion request: logged through Sequel's loggers, and any
             # HTTP failure re-raised as a Sequel::DatabaseError. Only its
             # 200 spends the query's budget, after the retries.
@@ -156,24 +146,6 @@ module Sequel
                 klass  = status == 404 ? NotFoundError : DatabaseError
                 klass.new("Notion #{status || "request"} #{detail}")
                      .tap { it.wrapped_exception = error }
-            end
-
-            # Data source object properties, fetched once and cached
-            def data_source(ds_id)
-                cached = Sequel.synchronize { @data_source_cache[ds_id] }
-                return cached if cached
-
-                props = request(:get,
-                                "data_sources/#{ds_id}")["properties"] || {}
-                TypeMap.check_property_names!(props.keys)
-                Sequel.synchronize { @data_source_cache[ds_id] = props }
-            end
-
-            def schema_parse_table(table_name, _opts)
-                ds_id = data_source_id_for(table_name)
-                raise Error, "Unknown data source: #{table_name}" unless ds_id
-
-                Schema.notion_to_sequel(data_source(ds_id))
             end
         end
     end

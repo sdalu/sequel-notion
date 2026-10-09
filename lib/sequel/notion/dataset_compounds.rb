@@ -52,10 +52,26 @@ module Sequel
             end
 
             def combined_rows
-                inner = compound_inner
-                rows  = inner.clone(compounds: nil).naked.all
-                inner.opts[:compounds].reduce(rows) do |left, (op, other, all)|
-                    combined(op, left, other.naked.all, all)
+                first = compound_inner.clone(compounds: nil)
+                names = first.columns
+                rows  = first.naked.all
+                compound_inner.opts[:compounds].reduce(rows) do |left, step|
+                    op, other, all = step
+                    combined(op, left, renamed(other, names), all)
+                end
+            end
+
+            # Another query's rows under the first query's column names,
+            # matched by position, as SQL names a combination's columns
+            def renamed(other, names)
+                columns = other.columns
+                unless columns.size == names.size
+                    raise Error, "combined queries select #{names.size} " \
+                                 "and #{columns.size} columns"
+                end
+
+                other.naked.all.map do |row|
+                    names.zip(columns).to_h { |name, col| [name, row[col]] }
                 end
             end
 
