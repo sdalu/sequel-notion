@@ -86,23 +86,19 @@ module Sequel
             end
 
             # Discover every data source once, when auto_register is set;
-            # true when it is set
+            # true when it is set. As Sequel does for its schema cache, the
+            # flag is set only once discovery has succeeded, and no lock is
+            # held across the requests: a concurrent lookup repeats the
+            # discovery rather than read a registry half filled, and a
+            # failed one is retried on the next lookup.
             def auto_register?
                 return false unless opts[:auto_register]
 
-                first = Sequel.synchronize do
-                    !@auto_registered && (@auto_registered = true)
+                unless Sequel.synchronize { @auto_registered }
+                    register_all_data_sources
+                    Sequel.synchronize { @auto_registered = true }
                 end
-                discover if first
                 true
-            end
-
-            # A failed discovery is retried on the next lookup
-            def discover
-                register_all_data_sources
-            rescue StandardError
-                Sequel.synchronize { @auto_registered = false }
-                raise
             end
 
             # Fallback: search by name, and remember what was found

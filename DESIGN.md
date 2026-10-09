@@ -108,3 +108,11 @@ their marks and their letters. A title with nothing left after
 normalising is named by its id, because an empty name would match every
 other empty one. Bulk registration validates every name before
 storing any, and a discovery that fails is retried on the next lookup.
+
+Discovery follows Sequel's own schema cache: check the flag under
+`Sequel.synchronize`, run the requests with no lock held, and set the
+flag only once they succeed. `Sequel.synchronize` is one process-wide
+mutex, so holding it across HTTP would stall every Sequel thread. Threads
+that start together on a cold connection each run the discovery, which
+costs requests but never lets one of them answer from a registry half
+filled.

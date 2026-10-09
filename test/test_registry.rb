@@ -115,6 +115,43 @@ class TestRegistry < Minitest::Test
         assert_equal 1, @searches
     end
 
+    # A search stub whose first call answers with +first+ (a block
+    # returning a Rack triple); later calls find "My Tasks"
+    def discovering(&first)
+        calls = 0
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.post("/v1/search") do
+            next first.call if (calls += 1) == 1 && first
+
+            json(results: [source("s1", "My Tasks")], has_more: false)
+        end
+        Sequel.connect(adapter: :notion, token: "t", test: false,
+                       auto_register: true, faraday_adapter: [:test, stubs])
+    end
+
+    def test_tables_never_answer_from_a_discovery_in_flight
+        entered = Queue.new
+        gate    = Queue.new
+        db = discovering do
+            entered << true
+            gate.pop
+            json(results: [source("s1", "My Tasks")], has_more: false)
+        end
+        first = Thread.new { db.tables }
+        entered.pop
+        assert_equal %i[my_tasks], db.tables
+        gate << true
+        assert_equal %i[my_tasks], first.value
+    ensure
+        gate << true
+    end
+
+    def test_a_failed_discovery_is_retried
+        db = discovering { [400, {}, "{}"] }
+        assert_raises(Sequel::DatabaseError) { db.tables }
+        assert_equal %i[my_tasks], db.tables
+    end
+
     def test_unknown_table_raises
         assert_nil @db.data_source_id_for(:nothing_here)
         assert_raises(Sequel::Error) { @db[:nothing_here].all }

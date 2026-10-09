@@ -30,6 +30,16 @@ failed on any two of them. Stripping every combining mark, the obvious
 way to keep other scripts, would merge distinct Japanese and Cyrillic
 letters. Marks are now dropped only after Latin letters (see DESIGN.md).
 
+## Marking discovery done before running it
+
+`auto_register` first set its flag under the lock and then ran the
+discovery, resetting the flag if it failed. A second thread arriving
+meanwhile saw the flag, skipped discovery, and answered from the
+registry as it stood: `DB.tables` returned `[]`. The flag is now set
+after the discovery succeeds (see DESIGN.md);
+`test_tables_never_answer_from_a_discovery_in_flight` holds a discovery
+open in one thread and asks from another.
+
 ## Putting `:id` first in selected rows
 
 Selected rows used to carry `:id` first, so that `update` and `delete`
