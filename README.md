@@ -198,15 +198,15 @@ Task[task.id].delete
 
 The primary key is `:id`. A `save` of a loaded record sends only the
 columns that changed, as `update` and `save_changes` do: a row reads
-back partial values (a date's start, the first 25 relations or people,
-rich text as plain text), and writing the whole row back would make
-the loss permanent. Notion cannot sort by page id, so a model adds no
+back partial values (a date's start, rich text as plain text), and
+writing the whole row back would make the loss permanent. Notion cannot sort by page id, so a model adds no
 primary key order: `Task.paged_each` streams in Notion's order, and
 `Task.last` needs an explicit one, `Task.order(:Name).last`, or raises
-Sequel's `No order specified`. Computed properties are marked
-`generated` in the schema, for Sequel's `skip_saving_columns` plugin.
-Date columns are not typecast, so a `Time` or a `Range` reaches Notion
-as given.
+Sequel's `No order specified`. Sequel's `paged_operations` plugin pages
+by primary key ranges, so it raises on a Notion model. Computed
+properties are marked `generated` in the schema, for Sequel's
+`skip_saving_columns` plugin. Date columns are not typecast, so a `Time`
+or a `Range` reaches Notion as given.
 
 Notion has no transactions: `DB.transaction` runs its block, swallows
 `Sequel::Rollback` (re-raised with `rollback: :reraise`), and rolls nothing
@@ -249,8 +249,11 @@ in Notion.
   Notion matches whole values only, so a pattern with any `%` raises.
 - Dates read back as the ISO 8601 `start` string; the `end` of a range is
   dropped. Rollups and unique ids read back as Notion's raw hashes.
-- Notion truncates relation and people values, and title/rich_text
-  mentions, at 25 references per page. The adapter does not fetch the rest.
+- A page lists at most 25 relations or people; a row's relation flagged
+  `has_more`, or 25 people (Notion flags none), is completed from the
+  page property endpoint, page by page, for the columns a
+  query selects. Mentions inside a title or rich text are still cut at
+  25, unflagged.
 - Notion's rate limit is 3 requests per second on most plans, so a large
   `update` or `delete` is slow.
 - Checked against the live API (2026-10-09): filters on title, url and
@@ -262,7 +265,7 @@ in Notion.
   record keeping a date range's end and its relations; `paged_each`
   following the cursor with a `page_size` below 100; negated filters
   excluding empty values, and filters merged or distributed to two
-  levels; and that search keeps
+  levels; a relation of 26 pages read in full; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
 

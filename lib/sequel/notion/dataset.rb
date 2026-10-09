@@ -2,6 +2,7 @@
 
 require "sequel/notion/dataset_pages"
 require "sequel/notion/dataset_selection"
+require "sequel/notion/dataset_truncation"
 require "sequel/notion/type_map"
 
 module Sequel
@@ -9,6 +10,7 @@ module Sequel
         class Dataset < Sequel::Dataset
             include DatasetPages
             include DatasetSelection
+            include DatasetTruncation
 
             def columns
                 selection&.map(&:last) || db.schema(source_table).map(&:first)
@@ -30,7 +32,10 @@ module Sequel
                 end
 
                 sel = selection
-                each_notion_page { yield project(TypeMap.page_to_row(it), sel) }
+                each_notion_page do |page|
+                    row = TypeMap.page_to_row(complete_page(page, sel))
+                    yield project(row, sel)
+                end
             end
 
             # Streams through Notion's cursor, as cursor adapters do: no

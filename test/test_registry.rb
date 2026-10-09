@@ -72,6 +72,26 @@ class TestRegistry < Minitest::Test
                        faraday_adapter: [:test, stubs])
     end
 
+    # Search answers 100 sources at a time, chained by next_cursor
+    def test_search_follows_the_cursor
+        cursors = []
+        stubs   = Faraday::Adapter::Test::Stubs.new
+        stubs.post("/v1/search") do |env|
+            from = JSON.parse(env.body)["start_cursor"].to_i
+            cursors << from
+            ids  = (from...[from + 100, 150].min)
+            more = from + 100 < 150
+            json(results: ids.map { source("s#{it}", "T #{it}") },
+                 has_more: more, next_cursor: more ? (from + 100).to_s : nil)
+        end
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_all_data_sources
+        assert_equal [0, 100], cursors
+        assert_equal 150, db.tables.size
+        assert_equal "s149", db.data_source_id_for(:t_149)
+    end
+
     def test_normalize_keeps_non_latin_letters
         assert_equal "タスク", Sequel::Notion::Registry.normalize("タスク")
         assert_equal "ελληνικά",

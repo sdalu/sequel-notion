@@ -101,6 +101,9 @@
   distributed into clauses, so `where(a).exclude(b: 1, c: 2)` and
   `where(a).where((b & c) | d)` work; what cannot fit raises instead of
   a 400.
+- A relation Notion lists only 25 of (flagged `has_more`), or 25 people,
+  is read in full from the page property endpoint, for the columns a
+  query returns (checked live with 26 relations).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
   instead of sending a date Notion rejects (checked live).
 

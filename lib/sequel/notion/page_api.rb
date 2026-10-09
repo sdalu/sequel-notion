@@ -13,6 +13,21 @@ module Sequel
                 request(:get, "pages/#{page_id}")
             end
 
+            # Every item of a paginated page property (relation, people)
+            def notion_property_items(page_id, property_id)
+                path   = "pages/#{page_id}/properties/#{property_id}"
+                items  = []
+                cursor = nil
+                loop do
+                    resp = request(:get, path,
+                                   cursor && { start_cursor: cursor })
+                    items.concat(resp["results"] || [])
+                    break items unless resp["has_more"]
+
+                    cursor = resp["next_cursor"]
+                end
+            end
+
             def notion_create_page(data_source_id, properties)
                 request(:post, "pages",
                         parent: { type: "data_source_id",

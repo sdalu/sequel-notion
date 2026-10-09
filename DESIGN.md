@@ -79,6 +79,18 @@ Sorts can only describe what Notion does. Notion puts empty values last
 in both directions (checked live), so `nulls: :last` is accepted as a
 no-op and `nulls: :first` raises.
 
+## Truncated lists are completed on read
+
+A page object lists at most 25 relations or people. `DatasetTruncation`
+completes such a property from the page property endpoint while a row is
+read, and only for the columns the query returns, so a `select` that
+leaves it out costs nothing. A relation says `has_more`; people carry no
+flag, so 25 of them are read again in case there are more, which costs a
+request when there were exactly 25. Leaving the truncation to the reader
+was rejected: a row is the only place a caller looks, and a silently
+short list is a wrong result. Mentions inside a title or rich text are
+also cut at 25 but unflagged and rare, and are not completed.
+
 ## Writes are typed by the schema
 
 `TypeMap.row_to_properties` takes the property type map and builds each
@@ -92,7 +104,7 @@ Computed properties are refused on write, and the schema marks them
 That keeps the refusal for an explicit write. A model's `save` of a
 loaded record sends only the changed columns (`ModelSaveSupport`), not
 Sequel's default of every column: a row reads back partial values (a
-date's start, 25 relations, plain text), and writing them back unchanged
+date's start, plain text), and writing them back unchanged
 would destroy the rest. Date columns get the schema type `:notion_date`, for which
 Sequel has no typecast, because `:date` or `:datetime` would drop the time
 or force one. Numbers other than Integer and Float are sent as Float,
