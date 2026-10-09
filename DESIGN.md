@@ -123,6 +123,12 @@ overwrites a name already registered: an explicit binding is a choice,
 not a shadow. An explicit `register_all_data_sources` stays all or
 nothing, because its caller named the set and can pass a mapper.
 
+Notion's search keeps listing a trashed data source, flagged `in_trash`
+(checked live). Every path that names sources from a listing skips those,
+so a trashed copy neither makes a live source's name ambiguous nor binds
+a name to a source that cannot be queried. `data_sources` returns the
+listing unfiltered, since the flag is part of what it reports.
+
 `normalize` drops combining marks only after a Latin letter, where they
 are accents (`É` → `e`). In other scripts a mark changes the letter
 (Japanese `ガ` against `カ`, Cyrillic `й` against `и`), so those titles keep

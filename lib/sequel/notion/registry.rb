@@ -38,7 +38,7 @@ module Sequel
             # search); the block, given (title, id), may choose the name.
             # All or nothing: a name clash registers none of them.
             def register_all_data_sources(database: nil, query: nil, &mapper)
-                found = data_sources(database:, query:).map do |ds|
+                found = live(data_sources(database:, query:)).map do |ds|
                     [source_name(ds, mapper), ds[:id]]
                 end
                 Sequel.synchronize do
@@ -119,15 +119,17 @@ module Sequel
             end
 
             def discover_data_sources
-                found = data_sources.group_by { source_name(it, nil) }
+                found = live(data_sources).group_by { source_name(it, nil) }
                 Sequel.synchronize do
-                    found.each do |name, sources|
-                        next if registry[name] in String
-
-                        ids = sources.map { it[:id] }.uniq
-                        registry[name] = ids.one? ? ids.first : Ambiguous[ids]
-                    end
+                    found.each { |name, sources| discovered(name, sources) }
                 end
+            end
+
+            def discovered(name, sources)
+                return if registry[name] in String
+
+                ids = sources.map { it[:id] }.uniq
+                registry[name] = ids.one? ? ids.first : Ambiguous[ids]
             end
 
             # Fallback: search by name, and remember what was found
@@ -141,15 +143,6 @@ module Sequel
 
                 registry_store(name, ids.first)
                 ids.first
-            end
-
-            def matching_source_ids(name)
-                wanted = Registry.normalize(name)
-                return [] if wanted.empty?
-
-                search_sources(name.to_s.tr("_", " "))
-                    .select { Registry.normalize(it[:name]) == wanted }
-                    .map { it[:id] }.uniq
             end
         end
     end

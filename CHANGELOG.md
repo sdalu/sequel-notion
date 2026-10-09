@@ -57,6 +57,8 @@
   for a date.
 - `order(..., nulls: :first)` raises instead of being dropped; Notion
   always sorts empty values last.
+- Discovery, the search fallback and `register_all_data_sources` skip
+  data sources in the trash, which Notion's search still lists.
 
 ## 0.1.0
 

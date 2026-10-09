@@ -64,6 +64,9 @@ Titles normalise to lower snake case. Accents are dropped from Latin
 letters only, and other scripts are kept as they are: `"My Tasks"` →
 `:my_tasks`, `"Électricité"` → `:electricite`, `"タスク"` → `:タスク`. A
 title with no letter or digit (`"🚀"`) is registered under its id.
+A data source in the trash is never named by discovery, a search or
+`register_all_data_sources`, though `data_sources` still lists it with
+`in_trash: true`.
 
 ```ruby
 DB.register_data_source(:tasks, "<data source id>")
@@ -235,7 +238,8 @@ in Notion.
   through the `date` key; page lookups by id with or without dashes;
   page creation with the `data_source_id` parent; writing, reading back
   and clearing every writable type; trashing and restoring; and a
-  `Sequel::Model` create, update and destroy.
+  `Sequel::Model` create, update and destroy; and that search keeps
+  listing a trashed data source, flagged `in_trash`.
 
 
 ## License

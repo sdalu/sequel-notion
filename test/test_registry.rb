@@ -212,6 +212,34 @@ class TestRegistry < Minitest::Test
         assert_empty db.tables
     end
 
+    # A database whose search lists "Tasks" twice, the s1 copy trashed,
+    # as Notion's search does for a trashed data source
+    def with_a_trashed_copy(**)
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.post("/v1/search") do
+            json(results: [source("s1", "Tasks").merge(in_trash: true),
+                           source("s2", "Tasks")],
+                 has_more: false)
+        end
+        Sequel.connect(adapter: :notion, token: "t", test: false,
+                       faraday_adapter: [:test, stubs], **)
+    end
+
+    def test_discovery_skips_a_trashed_source
+        db = with_a_trashed_copy(auto_register: true)
+        assert_equal %i[tasks], db.tables
+        assert_equal "s2", db.data_source_id_for(:tasks)
+    end
+
+    def test_search_fallback_skips_a_trashed_source
+        assert_equal "s2", with_a_trashed_copy.data_source_id_for(:tasks)
+    end
+
+    def test_register_all_skips_a_trashed_source
+        db = with_a_trashed_copy.register_all_data_sources
+        assert_equal "s2", db.data_source_id_for(:tasks)
+    end
+
     def test_unknown_table_raises
         assert_nil @db.data_source_id_for(:nothing_here)
         assert_raises(Sequel::Error) { @db[:nothing_here].all }

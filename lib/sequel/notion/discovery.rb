@@ -15,6 +15,19 @@ module Sequel
 
             private
 
+            # Notion's search still lists a trashed data source, flagged
+            def live(sources) = sources.reject { it[:in_trash] }
+
+            # Ids of the live data sources whose title normalises to name
+            def matching_source_ids(name)
+                wanted = Registry.normalize(name)
+                return [] if wanted.empty?
+
+                live(search_sources(name.to_s.tr("_", " ")))
+                    .select { Registry.normalize(it[:name]) == wanted }
+                    .map { it[:id] }.uniq
+            end
+
             def database_sources(database)
                 resp = request(:get, "databases/#{database}")
                 (resp["data_sources"] || []).map do |ds|
