@@ -139,7 +139,9 @@ or `NOT (N != 1)` would negate the guard into `is_empty`. Following
 Notion's rule instead was rejected: a Sequel user reads `exclude` as
 SQL, and the date `!=` already followed SQL. Formula and unique ID
 leaves need no guard: Notion leaves an empty formula result out of its
-negations (checked live), and a unique ID is never empty.
+negations (checked live), and a unique ID is never empty. A rollup's
+does: its `does_not_equal` matched an average over no relation (checked
+live), so the guard goes under the rollup's kind, as the condition does.
 
 A rollup filters through its value, nested like a formula's (rule R):
 `{rollup: {number: …}}` or `{rollup: {date: …}}`. Which one is read from

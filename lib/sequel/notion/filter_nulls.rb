@@ -13,7 +13,9 @@ module Sequel
             NEGATIVE_OPS = %w[does_not_equal does_not_contain].freeze
 
             # Never empty (checkbox, unique_id), or already excluding
-            # empty results (formula, checked live)
+            # empty results (formula, checked live). A rollup is not: its
+            # does_not_equal matches an empty one (checked live), so it is
+            # guarded under its kind.
             UNGUARDED = %w[checkbox unique_id formula].freeze
 
             private
@@ -32,12 +34,15 @@ module Sequel
             end
 
             def guarded_leaf(leaf)
-                key = (leaf.keys - ["property"]).first
+                key  = (leaf.keys - ["property"]).first
+                kind = leaf[key].keys.first if key == "rollup"
+                cond = kind ? leaf[key][kind] : leaf[key]
                 return [leaf] if UNGUARDED.include?(key) ||
-                                 !NEGATIVE_OPS.include?(leaf[key].keys.first)
+                                 !NEGATIVE_OPS.include?(cond.keys.first)
 
+                guard = { "is_not_empty" => true }
                 [leaf, { "property" => leaf["property"],
-                         key => { "is_not_empty" => true } }]
+                         key => kind ? { kind => guard } : guard }]
             end
 
             def conjunction(conds)

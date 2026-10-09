@@ -414,7 +414,8 @@ believes Notion accepts. These were also checked against
 
 - **Filters:** title, url and email through the `rich_text` key; created
   and edited times through the `date` key; negations excluding empty
-  values, formula negations excluding empty results, and filters merged
+  values, formula negations excluding empty results, a rollup negation
+  guarded against an empty average, and filters merged
   or distributed to two levels; unique ID filters and sorts; filters and
   sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
   string and number formulas and on both rollups.

@@ -155,6 +155,9 @@
   as a date, number or text.
 - A `Hash` written to a multi-select, relation or people property
   raises instead of becoming one option or id per key/value pair.
+- `exclude`, `NOT IN` and other negations on a rollup leave out pages
+  whose rollup is empty, as on other properties: Notion's rollup
+  `does_not_equal` matched an average over no relation (checked live).
 
 ## 0.1.0
 

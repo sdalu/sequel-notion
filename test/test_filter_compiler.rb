@@ -782,10 +782,16 @@ class TestFilterCompiler < Minitest::Test
                      rollup(Sequel[:Last] >= Date.new(2026, 1, 1)))
     end
 
+    # Notion's rollup does_not_equal matches an empty rollup (checked
+    # live on an average over no relation), so it is guarded
     def test_rollup_negations
-        assert_equal(leaf("Sum", "rollup",
-                          "number" => { "does_not_equal" => 7 }),
-                     rollup(Sequel.~(Sum: 7)))
+        assert_equal(
+            { "and" => [
+                leaf("Sum", "rollup", "number" => { "does_not_equal" => 7 }),
+                leaf("Sum", "rollup", "number" => { "is_not_empty" => true })
+            ] },
+            rollup(Sequel.~(Sum: 7))
+        )
         assert_equal(leaf("Sum", "rollup", "number" => { "equals" => 7 }),
                      rollup(Sequel::SQL::BooleanExpression.new(
                          :NOT, Sequel.~(Sum: 7)
