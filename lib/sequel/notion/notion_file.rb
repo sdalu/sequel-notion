@@ -4,17 +4,103 @@ require "uri"
 
 module Sequel
     module Notion
-        class File
-            attr_reader :name, :url, :expiry_time, :type, :caption
+        # File's "Notion API → File instances" class methods, split out
+        # here (and mixed in with `extend`) to keep File's own body
+        # under the class-length limit.
+        module FileDeserialization
+            # Parse a single file object from Notion API response
+            #
+            #   File.from_notion({
+            #     "type" => "external",
+            #     "name" => "doc.pdf",
+            #     "external" => { "url" => "https://..." }
+            #   })
+            #
+            def from_notion(file_obj)
+                return nil unless file_obj.is_a?(Hash)
 
-            # type: :file (Notion-hosted) or :external
-            def initialize(url:, name: nil, type: :external,
-                           expiry_time: nil, caption: nil)
+                case file_obj["type"]
+                when "file"     then from_notion_file(file_obj)
+                when "external" then from_notion_external(file_obj)
+                when nil then raise Sequel::Error, "file object with no type"
+                else from_notion_other(file_obj)
+                end
+            end
+
+            # Parse the "files" property value → array of File
+            #
+            #   File.from_notion_property(prop)
+            #   # => [#<File name="doc.pdf" url="https://...">, ...]
+            #
+            def from_notion_property(prop)
+                files = prop["files"] || []
+                files.filter_map { |f| from_notion(f) }
+            end
+
+            private
+
+            def extract_caption(file_obj)
+                file_obj["caption"]&.map { |t| t["plain_text"] }&.join
+            end
+
+            # from_notion's three branches, split out to keep from_notion
+            # itself short.
+
+            def from_notion_file(file_obj)
+                new(
+                    name: file_obj["name"],
+                    url: file_obj.dig("file", "url"),
+                    type: :file,
+                    expiry_time: file_obj.dig("file", "expiry_time"),
+                    caption: extract_caption(file_obj)
+                )
+            end
+
+            def from_notion_external(file_obj)
+                new(
+                    name: file_obj["name"],
+                    url: file_obj.dig("external", "url"),
+                    type: :external,
+                    caption: extract_caption(file_obj)
+                )
+            end
+
+            # A type this adapter does not know yet (Notion added one
+            # after this was written): round-trip it opaquely via @raw
+            def from_notion_other(file_obj)
+                type = file_obj["type"]
+                new(
+                    name: file_obj["name"],
+                    url: file_obj.dig(type, "url"),
+                    type: type,
+                    caption: extract_caption(file_obj),
+                    raw: file_obj
+                )
+            end
+        end
+
+        class File
+            extend FileDeserialization
+
+            attr_reader :name, :url, :expiry_time, :type, :caption, :raw
+
+            # Keywords besides url:, name: and type:
+            OPTIONS = %i[expiry_time caption raw].freeze
+
+            # type: :file (Notion-hosted) or :external; any other is kept
+            # with its raw hash, so that it is written back unchanged
+            def initialize(url:, name: nil, type: :external, **opts)
+                unknown = opts.keys - OPTIONS
+                unless unknown.empty?
+                    raise ArgumentError, "unknown keywords: #{unknown.inspect}"
+                end
+
                 @name        = name
                 @url         = url
                 @type        = type.to_sym
-                @expiry_time = expiry_time
-                @caption     = caption
+                @expiry_time = opts[:expiry_time]
+                @caption     = opts[:caption]
+                @raw         = opts[:raw]
             end
 
             # Is this a Notion-hosted (internal) file?
@@ -39,6 +125,7 @@ module Sequel
                 case @type
                 when :external then to_notion_external
                 when :file then to_notion_file
+                else @raw
                 end
             end
 
@@ -50,38 +137,6 @@ module Sequel
             def self.to_notion_property(files)
                 files = Array(files)
                 { "files" => files.map(&:to_notion) }
-            end
-
-            # ----------------------------------------------------------
-            # Deserialisation: Notion API → File instances
-            # ----------------------------------------------------------
-
-            # Parse a single file object from Notion API response
-            #
-            #   File.from_notion({
-            #     "type" => "external",
-            #     "name" => "doc.pdf",
-            #     "external" => { "url" => "https://..." }
-            #   })
-            #
-            def self.from_notion(file_obj)
-                return nil unless file_obj.is_a?(Hash)
-
-                case file_obj["type"]
-                when "file"     then from_notion_file(file_obj)
-                when "external" then from_notion_external(file_obj)
-                else raise Error, "unhandled type"
-                end
-            end
-
-            # Parse the "files" property value → array of File
-            #
-            #   File.from_notion_property(prop)
-            #   # => [#<File name="doc.pdf" url="https://...">, ...]
-            #
-            def self.from_notion_property(prop)
-                files = prop["files"] || []
-                files.filter_map { |f| from_notion(f) }
             end
 
             # ----------------------------------------------------------
@@ -108,13 +163,15 @@ module Sequel
             # Comparison & display
             # ----------------------------------------------------------
 
+            # raw tells apart files of an unknown type, which may have no URL
             def ==(other)
-                other.is_a?(File) && @url == other.url && @type == other.type
+                other.is_a?(File) && @url == other.url &&
+                    @type == other.type && @raw == other.raw
             end
             alias eql? ==
 
             def hash
-                [@url, @type].hash
+                [@url, @type, @raw].hash
             end
 
             def to_s
@@ -123,32 +180,6 @@ module Sequel
                     "#{@url}#{tag}>"
             end
             alias inspect to_s
-
-            private_class_method def self.extract_caption(file_obj)
-                file_obj["caption"]&.map { |t| t["plain_text"] }&.join
-            end
-
-            # from_notion's two branches, split out to keep from_notion
-            # itself short.
-
-            private_class_method def self.from_notion_file(file_obj)
-                new(
-                    name: file_obj["name"],
-                    url: file_obj.dig("file", "url"),
-                    type: :file,
-                    expiry_time: file_obj.dig("file", "expiry_time"),
-                    caption: extract_caption(file_obj)
-                )
-            end
-
-            private_class_method def self.from_notion_external(file_obj)
-                new(
-                    name: file_obj["name"],
-                    url: file_obj.dig("external", "url"),
-                    type: :external,
-                    caption: extract_caption(file_obj)
-                )
-            end
 
             private
 

@@ -90,6 +90,17 @@ class TestTypeMap < Minitest::Test
         assert_raises(Sequel::Error) { TM.build_property("1e400", "number") }
     end
 
+    # Float() accepts hex, binary and underscore-grouped strings; a
+    # number property is plain decimal text only
+    def test_number_string_must_be_decimal
+        %w[0x1A 1_000 0b11].each do |value|
+            assert_raises(Sequel::Error) { TM.build_property(value, "number") }
+        end
+        [" 5 ", "3.14", "-2", "1e3"].each do |value|
+            assert_kind_of Numeric, TM.build_property(value, "number")["number"]
+        end
+    end
+
     def test_number_refuses_nan_and_infinity_naming_the_property
         [Float::NAN, Float::INFINITY, -Float::INFINITY].each do |value|
             error = assert_raises(Sequel::Error) do
@@ -358,6 +369,41 @@ class TestTypeMap < Minitest::Test
 
     def test_files_nil_is_empty_array
         assert_equal({ "files" => [] }, TM.build_property(nil, "files"))
+    end
+
+    # A type Notion added after this adapter (e.g. file_upload) must not
+    # blow up reading the page; round-trip it opaquely instead
+    def test_unknown_file_type_round_trips
+        obj = { "type" => "file_upload", "name" => "x.pdf",
+                "file_upload" => { "id" => "u1" } }
+        files = Sequel::Notion::File.from_notion_property({ "files" => [obj] })
+
+        assert_equal 1, files.size
+        assert_equal :file_upload, files.first.type
+        assert_equal obj, files.first.to_notion
+    end
+
+    # Two uploads have no URL; only their raw hashes tell them apart
+    def test_unknown_file_types_differ_by_raw
+        a, b = Sequel::Notion::File.from_notion_property(
+            { "files" => [{ "type" => "file_upload", "file_upload" => { "id" => "u1" } },
+                          { "type" => "file_upload", "file_upload" => { "id" => "u2" } }] }
+        )
+        refute_equal a, b
+        assert_equal 2, [a, b].uniq.size
+    end
+
+    # File is public API: a mistyped keyword must not vanish
+    def test_file_refuses_an_unknown_keyword
+        assert_raises(ArgumentError) do
+            Sequel::Notion::File.new(url: "https://x.org/a", expiry: "t")
+        end
+    end
+
+    def test_file_object_without_a_type_raises
+        assert_raises(Sequel::Error) do
+            Sequel::Notion::File.from_notion({ "name" => "x.pdf" })
+        end
     end
 
     # ----------------------------------------------------------

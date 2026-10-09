@@ -158,6 +158,20 @@ class TestSequelApi < Minitest::Test
         assert_nil(@db.transaction { raise Sequel::Rollback })
     end
 
+    # Notion has no transactions to roll back: a test framework that
+    # wraps tests in one must not be told its writes were undone
+    def test_transaction_refuses_rollback_always
+        assert_raises(Sequel::Error) do
+            @db.transaction(rollback: :always) { @db[:tasks].insert(Name: "x") }
+        end
+    end
+
+    def test_transaction_reraises_rollback_on_request
+        assert_raises(Sequel::Rollback) do
+            @db.transaction(rollback: :reraise) { raise Sequel::Rollback }
+        end
+    end
+
     def test_unparsable_response_is_a_database_error
         @stubs.get("/v1/pages/bad") do
             [200, { "Content-Type" => "application/json" }, "not json"]

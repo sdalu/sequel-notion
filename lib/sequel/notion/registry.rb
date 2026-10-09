@@ -52,7 +52,7 @@ module Sequel
             def data_source_id_for(table_name)
                 name = table_name.to_sym
                 resolved(name, registry_fetch(name)) ||
-                    (name.match?(UUID) && name.to_s) ||
+                    (name.match?(UUID) && name.to_s.downcase) ||
                     (auto_register? && resolved(name, registry_fetch(name))) ||
                     search_data_source(name)
             end

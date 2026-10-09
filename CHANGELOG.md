@@ -66,6 +66,19 @@
   instead of Notion's 400 on a null start.
 - `update` with SQL (`Sequel.lit`) raises `Sequel::Error` instead of a
   `NoMethodError`.
+- A file of a type the adapter does not know reads back as a
+  `Sequel::Notion::File` keeping its `raw` hash, and is written back
+  unchanged, instead of making the whole page unreadable; two such files
+  compare by that hash, since they may have no URL. `File.new` refuses an
+  unknown keyword.
+- `LIKE '%'` (wildcards only) is `is_not_empty`, and `NOT LIKE '%'`
+  `is_empty`, instead of `contains ""` or an error.
+- A number given as a String must be decimal, in writes and filters:
+  `"0x1A"` and `"1_000"` raise instead of becoming 26 and 1000.
+- `transaction(rollback: :always)` raises instead of keeping every write;
+  `rollback: :reraise` re-raises `Sequel::Rollback`.
+- Upper-case page and data source ids are lower-cased, which Notion
+  requires.
 
 ## 0.1.0
 

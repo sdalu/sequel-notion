@@ -9,6 +9,11 @@ require_relative "notion_file"
 module Sequel
     module Notion
         module TypeMap
+            # Float() also accepts hex ("0x1A"), binary ("0b11") and
+            # underscore-grouped ("1_000") strings; a Notion number
+            # property is plain decimal text only.
+            DECIMAL = /\A\s*[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?\s*\z/
+
             module_function
 
             def build_string(value) = value&.to_s
@@ -48,8 +53,12 @@ module Sequel
                 raise Sequel::Error, "invalid number: #{value.inspect}"
             end
 
-            # Float overflows "1e400" to Infinity instead of raising
+            # Float overflows "1e400" to Infinity instead of raising; it
+            # also accepts hex/binary/underscored strings DECIMAL refuses
             def parse_number(value)
+                raise Sequel::Error, "invalid number: #{value.inspect}" unless
+                    value.match?(DECIMAL)
+
                 finite_number(Float(value))
             rescue ArgumentError
                 raise Sequel::Error, "invalid number: #{value.inspect}"

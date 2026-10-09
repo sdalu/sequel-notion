@@ -135,6 +135,15 @@ class TestDataset < Minitest::Test
         assert_raises(Sequel::Error) { @db[:tasks].all }
     end
 
+    # Notion answers 400 to an upper-case page id
+    def test_upper_case_page_id_is_lower_cased
+        id = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        @stubs.get("/v1/pages/#{id.delete("-").downcase}") do
+            json(**page(id.downcase, "a"))
+        end
+        assert_equal ["a"], @db[:tasks].where(id: id).map(:Name)
+    end
+
     def test_id_conditions_intersect_across_dash_spellings
         id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
         @stubs.get("/v1/pages/#{id.delete("-")}") do

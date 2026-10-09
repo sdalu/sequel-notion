@@ -109,7 +109,7 @@ module Sequel
                 return unless FilterCompiler.property_name(expr.args[0]) ==
                               "id"
 
-                Array(expr.args[1]).map { it.to_s.delete("-") }.uniq
+                Array(expr.args[1]).map { it.to_s.delete("-").downcase }.uniq
             rescue Error
                 nil
             end

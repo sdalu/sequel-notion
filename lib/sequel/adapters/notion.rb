@@ -59,10 +59,11 @@ module Sequel
 
             # Notion has no transactions: run the block as is, so that
             # Sequel::Model (which wraps saves in one) works.
-            def transaction(_opts = OPTS)
+            def transaction(opts = OPTS)
+                refuse_rollback_always!(opts)
                 synchronize { yield it }
             rescue Rollback
-                nil
+                raise if opts[:rollback] == :reraise
             end
 
             def table_exists?(name)
@@ -107,6 +108,12 @@ module Sequel
             end
 
             private
+
+            def refuse_rollback_always!(opts)
+                return unless opts[:rollback] == :always
+
+                raise Error, "Notion has no transactions to roll back"
+            end
 
             def build_stack(conn, token)
                 conn.headers["Authorization"]  = "Bearer #{token}"

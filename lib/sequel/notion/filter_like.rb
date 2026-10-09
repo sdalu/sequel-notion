@@ -70,6 +70,7 @@ module Sequel
                 case op
                 when "equals" then "does_not_equal"
                 when "contains" then "does_not_contain"
+                when "is_not_empty" then "is_empty"
                 when "starts_with", "ends_with"
                     raise Sequel::Error,
                           "Notion has no negated #{op} operator " \
@@ -110,6 +111,9 @@ module Sequel
             end
 
             def classify_like_wildcards(wild_idxs, last_idx, literal, ctx)
+                return ["is_not_empty", true] if
+                    literal.empty? && !wild_idxs.empty?
+
                 case wild_idxs
                 when [] then ["equals", literal]
                 when [0] then classify_leading_wildcard(last_idx, literal, ctx)

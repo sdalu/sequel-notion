@@ -54,7 +54,7 @@ A table name is resolved to a data source id in this order:
 1. a name registered with `register_data_source` or
    `register_all_data_sources`;
 2. a table name that is itself a data source id (32 hex digits, dashes
-   optional);
+   optional, either case);
 3. with `auto_register: true`, every data source the token can see,
    discovered once;
 4. a search for a data source whose title normalises to the table
@@ -107,6 +107,7 @@ source that has one raises; rename the property in Notion.
 | `where(P: [a, b])`                      | `or` of `equals`; a `nil` in the list is `is_empty` |
 | `<`, `<=`, `>`, `>=`                    | number comparisons; `before`/`after`/`on_or_…` on dates |
 | `Sequel.like(:P, "%x%")`, `"x%"`, `"%x"`, `"x"` | `contains`, `starts_with`, `ends_with`, `equals` |
+| `Sequel.like(:P, "%")` (wildcards only) | `is_not_empty` (`is_empty` for `NOT LIKE`) |
 | multi-select, people, relation `=`      | `contains`                                 |
 | formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
 | `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
@@ -119,7 +120,7 @@ paginated automatically.
 
 `where(id: "…")` or `where(id: [...])` fetches those pages directly,
 including pages in the trash (`:in_trash` says so). An id may be written
-with or without dashes, and a repeated id gives one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
+with or without dashes, in either case, and a repeated id gives one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
 An `id` condition cannot be combined with other conditions.
 
 `select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
@@ -141,7 +142,7 @@ data source:
 | Notion type                     | Ruby value                                   | `nil` clears to |
 |---------------------------------|----------------------------------------------|-----------------|
 | title, rich_text                | anything (`to_s`), split into runs of 2000 characters as Notion counts them (an emoji is two) | `[]` |
-| number                          | a finite `Numeric` (sent as Integer or Float), or a numeric `String` | `null` |
+| number                          | a finite `Numeric` (sent as Integer or Float), or a decimal `String` (`"1e3"`, not `"0x1A"` or `"1_000"`), also in filters | `null` |
 | select, status                  | the option name                              | `null`          |
 | multi_select                    | an `Array` of names, or one name             | `[]`            |
 | date                            | `Date`, `Time`, a `Range` of them, an ISO 8601 `String`, or `{start:, end:}` | `null` |
@@ -149,7 +150,7 @@ data source:
 | url, email, phone_number        | `to_s`                                       | `null`          |
 | relation                        | page id(s)                                   | `[]`            |
 | people                          | user id(s)                                   | `[]`            |
-| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them; unnamed, a file is named after the URL's last path segment | `[]`    |
+| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them; unnamed, a file is named after the URL's last path segment; a file of a type the adapter does not know reads back with its `raw` hash and is written back unchanged | `[]`    |
 
 Notion's date ranges include their end, so an exclusive range
 `d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
@@ -191,7 +192,8 @@ columns are not typecast, so a `Time` or a `Range` reaches Notion as
 given.
 
 Notion has no transactions: `DB.transaction` runs its block, swallows
-`Sequel::Rollback`, and rolls nothing back.
+`Sequel::Rollback` (re-raised with `rollback: :reraise`), and rolls nothing
+back. `rollback: :always` raises, since every write would be kept.
 
 
 ## Schema

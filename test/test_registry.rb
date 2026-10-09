@@ -108,6 +108,13 @@ class TestRegistry < Minitest::Test
         assert_equal 0, @searches
     end
 
+    # Notion answers 404 to an upper-case data source id
+    def test_upper_case_data_source_id_is_lower_cased
+        id = "0123456789ABCDEF0123456789ABCDEF"
+        assert_equal id.downcase, @db.data_source_id_for(id)
+        assert_equal 0, @searches
+    end
+
     def test_auto_register_discovers_once
         db = connect(auto_register: true)
         assert_includes db.tables, :electricite

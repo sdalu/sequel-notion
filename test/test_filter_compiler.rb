@@ -437,6 +437,26 @@ class TestFilterCompiler < Minitest::Test
         end
     end
 
+    # A pattern made only of wildcards has no literal to equal/contain:
+    # it just asks whether the property holds anything at all
+    def test_like_only_wildcards_is_not_empty
+        %w[%% %].each do |pattern|
+            expr = @db[:t].where(Sequel.like(:Name, pattern)).opts[:where]
+            assert_equal(
+                { "property" => "Name",
+                  "rich_text" => { "is_not_empty" => true } }, compile(expr)
+            )
+        end
+    end
+
+    def test_not_like_only_wildcard_is_empty
+        expr = @db[:t].exclude(Sequel.like(:Name, "%")).opts[:where]
+        assert_equal(
+            { "property" => "Name",
+              "rich_text" => { "is_empty" => true } }, compile(expr)
+        )
+    end
+
     def test_like_without_wildcard_on_multi_select_is_contains
         expr = @db[:t].where(Sequel.like(:Tags, "ruby")).opts[:where]
         assert_equal(
@@ -607,6 +627,15 @@ class TestFilterCompiler < Minitest::Test
     def test_non_finite_number_value_raises
         expr = @db[:t].where(N: Float::NAN).opts[:where]
         assert_raises(Sequel::Error) { compile(expr) }
+    end
+
+    # Float() accepts hex, binary and underscore-grouped strings; a
+    # number filter is plain decimal text only
+    def test_number_filter_refuses_non_decimal_strings
+        %w[0x1A 1_000 0b11].each do |value|
+            expr = @db[:t].where(N: value).opts[:where]
+            assert_raises(Sequel::Error) { compile(expr) }
+        end
     end
 
     def test_non_boolean_checkbox_value_raises

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "sequel/notion/filter_tables"
+require "sequel/notion/type_map"
 
 module Sequel
     module Notion
@@ -95,6 +96,7 @@ module Sequel
                 number = case value
                          when Integer, Float then value
                          when Numeric then value.to_f
+                         when String then decimal_number!(value)
                          else Float(value)
                          end
                 return number if number.is_a?(Integer) || number.finite?
@@ -102,6 +104,15 @@ module Sequel
                 raise Sequel::Error, "not a number: #{value.inspect}"
             rescue ArgumentError, TypeError
                 raise Sequel::Error, "not a number: #{value.inspect}"
+            end
+
+            # Float() also accepts hex/binary/underscored strings; a
+            # number filter value is plain decimal text only
+            def decimal_number!(value)
+                raise Sequel::Error, "not a number: #{value.inspect}" unless
+                    value.match?(TypeMap::DECIMAL)
+
+                Float(value)
             end
 
             def coerce_value(value, key)

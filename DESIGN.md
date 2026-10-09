@@ -47,6 +47,10 @@ matches `NULL`, but the adapter has no `NULL` to be faithful to, and
 passing `nil` on as a value sent `""`, which Notion matches as empty for
 some types and rejects for others (a date answers 400).
 
+A `LIKE` pattern of wildcards only matches any non-null string, which in
+Notion is `is_not_empty`; sending it as `contains ""` would leave the
+answer to whatever Notion does with an empty needle.
+
 Sorts can only describe what Notion does. Notion puts empty values last
 in both directions (checked live), so `nulls: :last` is accepted as a
 no-op and `nulls: :first` raises.
@@ -98,7 +102,10 @@ out may already have happened.
 
 Notion has no transactions. `transaction` just yields, so the
 `Sequel::Model` paths that wrap a save in one still work. Nothing is rolled
-back.
+back. The one option it cannot ignore is `rollback: :always`: a caller
+passing it (a test suite wrapping each test, typically) relies on the
+writes disappearing, so it raises before the block runs rather than keep
+them.
 
 ## Table names
 
