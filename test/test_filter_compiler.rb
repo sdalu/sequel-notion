@@ -337,9 +337,28 @@ class TestFilterCompiler < Minitest::Test
         )
     end
 
-    def test_in_empty_array_raises
-        expr = @db[:t].where(N: []).opts[:where]
-        assert_raises(Sequel::Error) { compile(expr) }
+    # An empty list, as Sequel's SQL adapters read it: IN matches no
+    # page (NOTHING), NOT IN every page (no filter at all); and/or fold
+    # them, NOT swaps them
+    def test_in_empty_array
+        nothing = Sequel::Notion::FilterCompiler::NOTHING
+        n1 = { "property" => "N", "number" => { "equals" => 1 } }
+        {
+            @db[:t].where(N: []) => nothing,
+            @db[:t].exclude(N: []) => nil,
+            @db[:t].where(N: 1).where(Tags: []) => nothing,
+            @db[:t].where(N: 1).or(Tags: []) => n1,
+            @db[:t].where(N: 1).exclude(Tags: []) => n1,
+            @db[:t].where(Sequel.~(Sequel.expr(N: []))) => nil,
+            @db[:t].where(F: []) => nothing,
+            @db[:t].where(Due: []) => nothing
+        }.each do |ds, expected|
+            expected.nil? ? assert_nil(compile(ds.opts[:where])) :
+                            assert_equal(expected, compile(ds.opts[:where]))
+        end
+        assert_raises(Sequel::Error) do
+            compile(@db[:t].where(Nope: []).opts[:where])
+        end
     end
 
     def test_in_non_array_raises

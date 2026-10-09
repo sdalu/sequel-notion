@@ -11,6 +11,7 @@ module Sequel
             private
 
             def negate(filter)
+                return opposite(filter) if constant?(filter)
                 if filter.key?("and")
                     return { "or" => negate_each(filter["and"]) }
                 end

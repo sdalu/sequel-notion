@@ -49,13 +49,16 @@ module Sequel
                 ids, rest = split_id_condition(@opts[:where])
                 return pages_by_id(ds_id, ids, rest, &) if ids
 
-                query_pages(ds_id, &)
+                filter = @opts[:where] &&
+                         FilterCompiler.for(db, ds_id).compile(@opts[:where])
+                query_pages(ds_id, filter, &) unless
+                    filter.equal?(FilterCompiler::NOTHING)
             end
 
-            def query_pages(ds_id)
+            def query_pages(ds_id, filter)
                 cursor = nil
                 loop do
-                    resp = db.notion_query(ds_id, query_body(ds_id, cursor))
+                    resp = db.notion_query(ds_id, query_body(filter, cursor))
                     (resp["results"] || []).each { yield it }
                     break unless resp["has_more"]
 
@@ -63,17 +66,13 @@ module Sequel
                 end
             end
 
-            def query_body(ds_id, cursor)
+            def query_body(filter, cursor)
                 body = { page_size: notion_page_size }
-                body[:filter] = filter(ds_id) if @opts[:where]
+                body[:filter] = filter if filter
                 body[:sorts]  = SortCompiler.compile(@opts[:order]) if
                     @opts[:order]
                 body[:start_cursor] = cursor if cursor
                 body
-            end
-
-            def filter(ds_id)
-                FilterCompiler.for(db, ds_id).compile(@opts[:where])
             end
 
             def notion_page_size

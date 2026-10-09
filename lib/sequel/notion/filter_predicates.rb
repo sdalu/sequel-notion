@@ -113,6 +113,7 @@ module Sequel
                 validate_in_array!(value, name)
 
                 key = filter_key_for!(name, lookup_type!(name))
+                return empty_in(expr.op) if value.empty?
                 return in_by_value(expr.op, name, value, key) if
                     IN_BY_VALUE.include?(key)
 
@@ -123,16 +124,18 @@ module Sequel
             end
 
             def validate_in_array!(value, name)
-                unless value.is_a?(Array)
-                    raise Sequel::Error,
-                          "IN/NOT IN requires an Array value for " \
-                          "property '#{name}', got #{value.class}"
-                end
-                return unless value.empty?
+                return if value.is_a?(Array)
 
                 raise Sequel::Error,
-                      "IN/NOT IN requires a non-empty Array value for " \
-                      "property '#{name}'"
+                      "IN/NOT IN requires an Array value for " \
+                      "property '#{name}', got #{value.class}"
+            end
+
+            # IN () matches no page, NOT IN () every page
+            def empty_in(sequel_op)
+                return FilterConstants::NOTHING if sequel_op == :IN
+
+                FilterConstants::EVERYTHING
             end
 
             def in_base_operator(sequel_op, key)

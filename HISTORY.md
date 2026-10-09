@@ -101,3 +101,12 @@ combined query refuses, beside `where` and `group`, broke `select_map`
 and `get`, which work by adding a `select` and had been right whenever
 the column was in the inner rows. The outer `select` now projects the
 combined rows instead.
+
+## Refusing an empty list
+
+`where(P: [])` and `exclude(P: [])` first raised, since Notion has no
+filter that every page, or no page, meets. Every SQL adapter of Sequel
+accepts them (`1 = 0`, `1 = 1`), so a list built at run time that came
+out empty broke a query that would have run anywhere else. They now
+compile to constants folded away before Notion sees the filter
+(DESIGN.md).

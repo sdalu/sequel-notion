@@ -131,6 +131,17 @@ class TestDataset < Minitest::Test
                      @calls.first["filter"])
     end
 
+    # An empty IN matches nothing, so Notion is not asked; an empty
+    # NOT IN matches everything, so no filter is sent
+    def test_empty_lists
+        three_pages
+        assert_empty @db[:tasks].where(Status: []).all
+        assert_equal 0, @db[:tasks].where(Done: true, Status: []).count
+        assert_empty @calls
+        assert_equal %w[a b c], @db[:tasks].exclude(Status: []).map(:Name)
+        assert(@calls.none? { it.key?("filter") })
+    end
+
     def test_unsupported_clause_raises
         assert_raises(Sequel::Error) do
             @db[:tasks].for_update.all

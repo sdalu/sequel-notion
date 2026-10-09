@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "sequel/notion/filter_constants"
 require "sequel/notion/filter_tables"
 require "sequel/notion/filter_helpers"
 require "sequel/notion/filter_predicates"
@@ -14,6 +15,7 @@ require "sequel/notion/filter_shape"
 module Sequel
     module Notion
         class FilterCompiler
+            include FilterConstants
             include FilterHelpers
             include FilterPredicates
             include FilterLikeTokenizer
@@ -56,7 +58,15 @@ module Sequel
                 @rollups    = rollups
             end
 
-            def compile(expr) = notion_shape(sql_nulls(compile_node(expr)))
+            # The Notion filter for a WHERE: nil when every page meets it
+            # (send none), NOTHING when no page does (send no request)
+            def compile(expr)
+                filter = compile_node(expr)
+                return (filter.equal?(NOTHING) ? NOTHING : nil) if
+                    constant?(filter)
+
+                notion_shape(sql_nulls(filter))
+            end
 
             private
 
@@ -88,8 +98,8 @@ module Sequel
             # Sequel's `Sequel.expr(col => nil/true/false)` form (rule I).
             def compile_boolean(expr)
                 case expr.op
-                when :AND then { "and" => expr.args.map { compile_node(it) } }
-                when :OR then { "or" => expr.args.map { compile_node(it) } }
+                when :AND then all_of(expr.args.map { compile_node(it) })
+                when :OR then any_of(expr.args.map { compile_node(it) })
                 when :NOT then compile_not(expr.args.first)
                 when :IS, :"IS NOT" then compile_is(expr)
                 else

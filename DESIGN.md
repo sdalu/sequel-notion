@@ -156,6 +156,16 @@ the left (`5 < n`) is mirrored. `exclude` arrives already inverted by
 Sequel. The explicit `negate` table covers the `NOT` that survives, and an
 operator with no Notion inverse (`starts_with`) raises.
 
+An empty list follows Sequel's SQL adapters, which send `IN ()` as
+`1 = 0` and `NOT IN ()` as `1 = 1`. Notion has no such filter, so
+`FilterConstants` stands for them while compiling: `and` and `or` fold
+them away, `NOT` swaps them, and only a whole filter can be one: no
+filter sent for every page, no request at all for none. Refusing an
+empty list, the first behaviour, was dropped (HISTORY.md); Sequel's
+`empty_array_consider_nulls` reading, under which neither matches an
+empty property, was not taken because Sequel itself does not default to
+it.
+
 `nil` means empty wherever it appears: `where(P: nil)` is `is_empty`, and
 so is a `nil` inside a list, `where(P: [a, nil])`. SQL's `IN` never
 matches `NULL`, but the adapter has no `NULL` to be faithful to, and

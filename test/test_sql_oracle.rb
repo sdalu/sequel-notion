@@ -150,6 +150,21 @@ class TestSqlOracle < Minitest::Test
                       .union(it[:tasks].where(Sequel[:Due] > D1)
                                        .select(:Kind, :Due)).all
         },
+        # Empty lists: IN matches nothing, NOT IN everything
+        empty_in: -> { kind(it, Kind: []) },
+        empty_not_in: -> { kind(it, Sequel.~(Kind: [])) },
+        empty_in_or: -> { kind(it, Sequel.|({ Kind: [] }, { N: 2 })) },
+        empty_in_and: lambda {
+            [kind(it, Sequel.&({ Kind: [] }, { N: 2 })),
+             kind(it, Sequel.&(Sequel.~(Kind: []), { N: 2 })),
+             it[:tasks].where(Kind: []).count,
+             it[:tasks].exclude(Kind: []).count]
+        },
+        empty_in_join: lambda {
+            [joined(it, :left_join).where(Sequel[:projects][:Name] => []).all,
+             joined(it, :left_join)
+                 .exclude(Sequel[:projects][:Name] => []).all]
+        },
         # Checkboxes: false before true, as Notion sorts them
         done_group: lambda {
             it[:tasks].group_and_count(:Done).order(:Done).all

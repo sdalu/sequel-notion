@@ -43,6 +43,9 @@ module Sequel
             # Whether an empty page passes a compiled filter: only an
             # is_empty test does (negations carry is_not_empty)
             def empty_match?(filter)
+                return true if filter.nil?
+                return false if filter.equal?(FilterCompiler::NOTHING)
+
                 return filter["and"].all? { empty_match?(it) } if filter["and"]
                 return filter["or"].any? { empty_match?(it) } if filter["or"]
 

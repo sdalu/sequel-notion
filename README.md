@@ -128,6 +128,8 @@ type reads back as is under [Values](#values).
 | `where(Done: true)`            | checkbox `equals`, or a formula's      |
 | `where(:Done)`                 | the same                               |
 | `where(P: [a, b])`             | `or` of `equals`; `nil` is empty       |
+| `where(P: [])`                 | no page: no request is sent            |
+| `exclude(P: [])`               | every page: no filter is sent          |
 | `<`, `<=`, `>`, `>=`           | numbers; dates: `before`, `after`, …   |
 | `Sequel.like(:P, "%x%")`       | `contains`                             |
 | `"x%"`, `"%x"`, `"x"`          | `starts_with`, `ends_with`, `equals`   |
