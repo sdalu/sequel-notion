@@ -48,6 +48,9 @@ module Sequel
 
             # Groups and DISTINCT over joined rows: the join comes last
             def computed_rows(&)
+                raise Error, "Notion datasets do not support: lock" if
+                    @opts[:lock]
+
                 client_side!(computed_operation)
                 return compound_rows(&) if compound?
                 return grouped_rows(&) if @opts[:group]

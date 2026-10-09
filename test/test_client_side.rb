@@ -107,6 +107,18 @@ class TestClientSide < Minitest::Test
         ds.client_side.all
     end
 
+    # A lock is refused on every path, computed ones included, before
+    # any request
+    def test_a_lock_is_refused_on_computed_queries
+        d = ds.client_side
+        [-> { d.for_update.join(Sequel[:t].as(:u), id: :Name).all },
+         -> { d.union(d).for_update.all },
+         -> { d.for_update.distinct.all }].each do |query|
+            assert_raises(Sequel::Error) { query.() }
+        end
+        assert_equal 0, @queries
+    end
+
     def test_a_model_opts_in_through_its_dataset
         klass = Class.new(Sequel::Model(ds))
         assert_raises(Sequel::Error) { klass.sum(:N) }
