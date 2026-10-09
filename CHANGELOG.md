@@ -44,6 +44,9 @@
   `Sequel::Error` too, instead of a JSON error.
 - `where(F: true)` and `exclude(F: false)` on a checkbox formula filter
   through the formula's `checkbox` key instead of raising.
+- `LIKE` with a wildcard on a multi-select, people or relation property
+  raises: Notion's `contains` there matches a whole value, so `"%ruby%"`
+  silently matched only the option `ruby`.
 
 ## 0.1.0
 

@@ -391,6 +391,26 @@ class TestFilterCompiler < Minitest::Test
         assert_raises(Sequel::Error) { compile(expr) }
     end
 
+    # Notion's contains on these types matches a whole option or id, so
+    # a wildcard would silently turn a substring into an exact match
+    def test_like_with_wildcard_on_multi_select_raises
+        %i[Tags People Rel].each do |col|
+            ["%x%", "x%", "%x"].each do |pattern|
+                expr = @db[:t].where(Sequel.like(col, pattern)).opts[:where]
+                assert_raises(Sequel::Error) { compile(expr) }
+            end
+        end
+    end
+
+    def test_like_without_wildcard_on_multi_select_is_contains
+        expr = @db[:t].where(Sequel.like(:Tags, "ruby")).opts[:where]
+        assert_equal(
+            { "property" => "Tags",
+              "multi_select" => { "contains" => "ruby" } },
+            compile(expr)
+        )
+    end
+
     # ----------------------------------------------------------
     # F: formula
     # ----------------------------------------------------------

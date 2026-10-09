@@ -27,11 +27,31 @@ module Sequel
                 key  = filter_key_for!(name, type)
 
                 op, value = translate_like_pattern(pattern, name, expr.op)
-                op = negate_like_operator(op, name) if negated_like?(expr.op)
-                op = equal_to_contains(op) if contains_type?(key)
+                op = like_operator(op, key, name, expr)
                 ensure_supported!(name, key, op)
 
                 { "property" => name, key => { op => value } }
+            end
+
+            # The pattern's operator, negated for NOT LIKE and turned into
+            # contains for the types that compare through it
+            def like_operator(op, key, name, expr)
+                op = whole_value_like!(op, expr) if contains_type?(key)
+                op = negate_like_operator(op, name) if negated_like?(expr.op)
+                contains_type?(key) ? equal_to_contains(op) : op
+            end
+
+            # Notion's contains on a multi_select, people or relation
+            # matches a whole option or id, never a substring: only a
+            # pattern without wildcard means the same thing
+            def whole_value_like!(op, expr)
+                return op if op == "equals"
+
+                left, pattern = expr.args
+                raise Sequel::Error,
+                      "Unsupported #{expr.op} pattern for property " \
+                      "'#{FilterCompiler.property_name(left)}' (matches " \
+                      "whole values only, no wildcard): #{pattern.inspect}"
             end
 
             def validate_like_pattern!(pattern, name, sequel_op)

@@ -216,7 +216,8 @@ in Notion.
 - `offset` and `count` fetch the pages they skip or count.
 - `LIKE` patterns are limited to the shapes in the filter table above. A `_`
   wildcard or a `%` in the middle raises. Notion's own case rules apply to
-  both `LIKE` and `ILIKE`.
+  both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
+  Notion matches whole values only, so a pattern with any `%` raises.
 - Dates read back as the ISO 8601 `start` string; the `end` of a range is
   dropped. Rollups and unique ids read back as Notion's raw hashes.
 - Notion truncates relation and people values, and title/rich_text
