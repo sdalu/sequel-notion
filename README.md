@@ -58,10 +58,12 @@ A table name is resolved to a data source id in this order:
 3. a table name that is itself a data source id (32 hex digits, dashes
    optional);
 4. a search for a data source whose title normalises to the table
-   name. The result is remembered.
+   name. The result is remembered; two matching data sources raise.
 
-Titles normalise to snake case ASCII: `"My Tasks"` → `:my_tasks`,
-`"Électricité"` → `:electricite`.
+Titles normalise to lower snake case. Accents are dropped from Latin
+letters only, and other scripts are kept as they are: `"My Tasks"` →
+`:my_tasks`, `"Électricité"` → `:electricite`, `"タスク"` → `:タスク`. A
+title with no letter or digit (`"🚀"`) is registered under its id.
 
 ```ruby
 DB.register_data_source(:tasks, "<data source id>")
@@ -86,7 +88,9 @@ DB[:tasks].where(Status: "In Progress", Done: false)
 ```
 
 Each row has `:id` (the page id), `:in_trash`, and one key per property,
-named as in Notion (`:"Due Date"` for a property with a space).
+named as in Notion (`:"Due Date"` for a property with a space). A property
+named `id` or `in_trash` would hide the page's own column, so a data
+source that has one raises; rename the property in Notion.
 
 | Sequel                                  | Notion filter                              |
 |-----------------------------------------|--------------------------------------------|
@@ -105,8 +109,8 @@ skips are still fetched. `count` pages through the results. Requests are
 paginated automatically.
 
 `where(id: "…")` or `where(id: [...])` fetches those pages directly,
-including pages in the trash (`:in_trash` says so). Several id conditions
-intersect. A missing page, or one from another data source, is no row.
+including pages in the trash (`:in_trash` says so). A repeated id gives
+one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
 An `id` condition cannot be combined with other conditions.
 
 `select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
@@ -137,6 +141,10 @@ data source:
 | relation                        | page id(s)                                   | `[]`            |
 | people                          | user id(s)                                   | `[]`            |
 | files                           | `Sequel::Notion::File`, a URL, or an `Array` of them | `[]`    |
+
+Notion's date ranges include their end, so an exclusive range
+`d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
+exclusive `Time` range raises.
 
 Writing a computed property (formula, rollup, created/edited time or by,
 unique_id, button, verification) or an unknown property raises

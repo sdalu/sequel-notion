@@ -68,7 +68,19 @@ module Sequel
 
             def build_date_range(value)
                 { "start" => date_component(value.begin),
-                  "end" => date_component(value.end) }
+                  "end" => date_component(inclusive_end(value)) }
+            end
+
+            # Notion's end is inclusive: an exclusive range ends the day
+            # before, which only a Date end can say
+            def inclusive_end(range)
+                last = range.end
+                return last if last.nil? || !range.exclude_end?
+                return last.prev_day if last.instance_of?(Date)
+
+                raise Sequel::Error,
+                      "an exclusive date range must end on a Date: " \
+                      "#{range.inspect}"
             end
 
             def build_date_hash(value)

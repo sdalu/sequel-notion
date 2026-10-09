@@ -111,6 +111,30 @@ class TestDataset < Minitest::Test
         assert_equal ["b"], @db[:tasks].where(id: %w[p2 zz]).map(:Name)
     end
 
+    def test_repeated_ids_yield_one_row
+        @stubs.get("/v1/pages/p1") { json(**page("p1", "a")) }
+        assert_equal 1, @db[:tasks].where(id: %w[p1 p1]).count
+    end
+
+    def test_property_named_id_is_refused
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.get("/v1/data_sources/#{DS_ID}") do
+            json(properties: { "id" => { "type" => "rich_text" } })
+        end
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_data_source(:tasks, DS_ID)
+        assert_raises(Sequel::Error) { db.schema(:tasks) }
+    end
+
+    def test_page_with_a_property_named_in_trash_is_refused
+        bad = page("p1", "a")
+        bad["properties"]["in_trash"] = { "type" => "checkbox",
+                                          "checkbox" => true }
+        serve_query([bad])
+        assert_raises(Sequel::Error) { @db[:tasks].all }
+    end
+
     def test_update_collects_ids_before_patching
         three_pages
         patched = []

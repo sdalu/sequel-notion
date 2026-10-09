@@ -98,5 +98,13 @@ directly, then a search. All of these name data sources through the same
 `Registry.normalize`, so a search and a bulk registration agree on what
 `"My Tasks"` is called. Rebinding a name to a different id raises,
 because two Notion sources that normalise alike would otherwise shadow
-each other silently. Bulk registration validates every name before
+each other silently. For the same reason, a search that finds two sources
+under one name raises instead of taking the first.
+
+`normalize` drops combining marks only after a Latin letter, where they
+are accents (`É` → `e`). In other scripts a mark changes the letter
+(Japanese `ガ` against `カ`, Cyrillic `й` against `и`), so those titles keep
+their marks and their letters. A title with nothing left after
+normalising is named by its id, because an empty name would match every
+other empty one. Bulk registration validates every name before
 storing any, and a discovery that fails is retried on the next lookup.

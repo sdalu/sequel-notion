@@ -61,6 +61,47 @@ class TestRegistry < Minitest::Test
         assert_equal 1, @searches
     end
 
+    # A database whose search returns these [id, title] sources
+    def searching(*sources)
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.post("/v1/search") do
+            json(results: sources.map { |id, title| source(id, title) },
+                 has_more: false)
+        end
+        Sequel.connect(adapter: :notion, token: "t", test: false,
+                       faraday_adapter: [:test, stubs])
+    end
+
+    def test_normalize_keeps_non_latin_letters
+        assert_equal "タスク", Sequel::Notion::Registry.normalize("タスク")
+        assert_equal "ελληνικά",
+                     Sequel::Notion::Registry.normalize("Ελληνικά")
+        assert_equal "ガス", Sequel::Notion::Registry.normalize("ガス")
+    end
+
+    def test_search_fallback_does_not_match_an_unrelated_non_latin_title
+        db = searching(%w[aaa タスク一覧], %w[bbb タスク])
+        assert_equal "bbb", db.data_source_id_for(:タスク)
+    end
+
+    def test_register_all_with_two_non_latin_titles
+        db = searching(%w[aaa タスク一覧], %w[bbb タスク])
+        db.register_all_data_sources
+        assert_equal %i[タスク一覧 タスク], db.tables
+    end
+
+    def test_a_title_with_no_letters_is_named_by_its_id
+        db = searching(["aaa", "🚀"])
+        db.register_all_data_sources
+        assert_equal %i[aaa], db.tables
+        assert_nil db.data_source_id_for(:"")
+    end
+
+    def test_search_fallback_refuses_an_ambiguous_name
+        db = searching(["aaa", "My Tasks"], %w[bbb My-Tasks])
+        assert_raises(Sequel::Error) { db.data_source_id_for(:my_tasks) }
+    end
+
     def test_uuid_table_names_pass_through
         id = "0123456789abcdef0123456789abcdef"
         assert_equal id, @db.data_source_id_for(id)

@@ -21,6 +21,15 @@ not among its default methods either. Nothing was ever retried, including
 every query and search. The order is now reversed and the methods are
 explicit. `test_rate_limit_is_retried` watches a 429 being retried.
 
+## ASCII-only table names
+
+Titles were first reduced to `[a-z0-9_]`. Every title in a non-Latin
+script became the empty name, so the search fallback bound a table to
+whichever such data source came first, and `register_all_data_sources`
+failed on any two of them. Stripping every combining mark, the obvious
+way to keep other scripts, would merge distinct Japanese and Cyrillic
+letters. Marks are now dropped only after Latin letters (see DESIGN.md).
+
 ## Putting `:id` first in selected rows
 
 Selected rows used to carry `:id` first, so that `update` and `delete`

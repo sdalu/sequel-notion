@@ -11,12 +11,14 @@ module Sequel
 
             UUID = /\A\h{8}-?\h{4}-?\h{4}-?\h{4}-?\h{12}\z/
 
-            # The table name a data source title maps to
+            # The table name a data source title maps to: accents dropped
+            # from Latin letters only, letters of other scripts kept
             def self.normalize(title)
                 title.to_s.unicode_normalize(:nfkd)
-                     .gsub(/\p{Mn}/, "")
+                     .gsub(/(?<=\p{Latin})\p{Mn}+/, "")
+                     .unicode_normalize(:nfc)
                      .downcase
-                     .gsub(/[^a-z0-9]+/, "_")
+                     .gsub(/[^\p{L}\p{N}]+/, "_")
                      .gsub(/\A_|_\z/, "")
             end
 
@@ -60,13 +62,12 @@ module Sequel
 
             def registry = (@registry ||= {})
 
+            # A title with no letter or digit is named by its id
             def source_name(source, mapper)
-                name = if mapper
-                           mapper.call(source[:name], source[:id])
-                       else
-                           Registry.normalize(source[:name] || source[:id])
-                       end
-                name.to_sym
+                return mapper.call(source[:name], source[:id]).to_sym if mapper
+
+                name = Registry.normalize(source[:name])
+                (name.empty? ? source[:id] : name).to_sym
             end
 
             def registry_fetch(name) = Sequel.synchronize { registry[name] }
@@ -106,14 +107,24 @@ module Sequel
 
             # Fallback: search by name, and remember what was found
             def search_data_source(name)
-                wanted = Registry.normalize(name)
-                found  = search_sources(name.to_s.tr("_", " ")).find do |ds|
-                    Registry.normalize(ds[:name]) == wanted
+                ids = matching_source_ids(name)
+                return if ids.empty?
+                if ids.size > 1
+                    raise Error, "data source name #{name} is ambiguous: " \
+                                 "#{ids.join(", ")}"
                 end
-                return unless found
 
-                registry_store(name, found[:id])
-                found[:id]
+                registry_store(name, ids.first)
+                ids.first
+            end
+
+            def matching_source_ids(name)
+                wanted = Registry.normalize(name)
+                return [] if wanted.empty?
+
+                search_sources(name.to_s.tr("_", " "))
+                    .select { Registry.normalize(it[:name]) == wanted }
+                    .map { it[:id] }.uniq
             end
         end
     end

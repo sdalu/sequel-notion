@@ -150,6 +150,7 @@ module Sequel
 
                 props = request(:get,
                                 "data_sources/#{ds_id}")["properties"] || {}
+                TypeMap.check_property_names!(props.keys)
                 Sequel.synchronize { @data_source_cache[ds_id] = props }
             end
 

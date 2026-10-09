@@ -147,6 +147,19 @@ class TestTypeMap < Minitest::Test
         )
     end
 
+    def test_exclusive_date_range_ends_the_day_before
+        range = Date.new(2026, 1, 1)...Date.new(2026, 1, 5)
+        assert_equal(
+            { "date" => { "start" => "2026-01-01", "end" => "2026-01-04" } },
+            TM.build_property(range, "date")
+        )
+    end
+
+    def test_exclusive_time_range_is_refused
+        range = Time.utc(2026, 1, 1)...Time.utc(2026, 1, 5)
+        assert_raises(Sequel::Error) { TM.build_property(range, "date") }
+    end
+
     def test_date_with_string_is_unchanged
         assert_equal({ "date" => { "start" => "2026-01-01" } },
                      TM.build_property("2026-01-01", "date"))

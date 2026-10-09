@@ -15,6 +15,10 @@ module Sequel
                 created_by last_edited_by unique_id button verification
             ].freeze
 
+            # Keys every row carries for the page itself; a property of
+            # the same name would overwrite them
+            PAGE_KEYS = %w[id in_trash].freeze
+
             # Writable Notion type => the builder for its value
             BUILDERS = {
                 "title" => :build_rich_text,
@@ -35,9 +39,11 @@ module Sequel
 
             # Notion page → flat Ruby hash
             def page_to_row(page)
-                row = { id: page["id"], in_trash: page["in_trash"] }
+                row   = { id: page["id"], in_trash: page["in_trash"] }
+                props = page["properties"] || {}
+                check_property_names!(props.keys)
 
-                (page["properties"] || {}).each do |name, prop|
+                props.each do |name, prop|
                     row[name.to_sym] = extract_value(prop)
                 end
 
@@ -56,6 +62,15 @@ module Sequel
                     ensure_known_property(name, type, prop_types)
                     props[name] = build_named_property(name, value, type)
                 end
+            end
+
+            def check_property_names!(names)
+                clash = names & PAGE_KEYS
+                return if clash.empty?
+
+                raise Sequel::Error,
+                      "property #{clash.first.inspect} clashes with the " \
+                      "page's own column; rename it in Notion"
             end
 
             def ensure_known_property(name, type, prop_types)

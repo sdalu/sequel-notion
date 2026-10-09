@@ -17,6 +17,16 @@
 - Trashed pages are reachable by id and can be restored.
 - `table_exists?`, the pagination extension and `Sequel::Rollback` work.
 - Requires Ruby 3.4.
+- Table names keep non-Latin letters (`"タスク"` → `:タスク`) instead of
+  normalising them all to the same empty name, which made a name lookup
+  pick another data source and broke `register_all_data_sources`. A
+  title with no letter or digit is named by its id, and a search that
+  matches two data sources raises.
+- An exclusive date `Range` ends on the day before; an exclusive `Time`
+  range raises.
+- A property named `id` or `in_trash` raises instead of overwriting the
+  page's own column.
+- `where(id: [a, a])` gives one row.
 
 ## 0.1.0
 
