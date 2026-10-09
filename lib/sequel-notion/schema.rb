@@ -1,38 +1,57 @@
 # frozen_string_literal: true
 
+require "sequel-notion/type_map"
+
 module Sequel
-  module Notion
-    module Schema
-      NOTION_TO_SEQUEL = {
-        "title"            => { type: :string  },
-        "rich_text"        => { type: :string  },
-        "number"           => { type: :float   },
-        "select"           => { type: :string  },
-        "multi_select"     => { type: :array   },
-        "status"           => { type: :string  },
-        "date"             => { type: :date    },
-        "checkbox"         => { type: :boolean },
-        "url"              => { type: :string  },
-        "email"            => { type: :string  },
-        "phone_number"     => { type: :string  },
-        "people"           => { type: :array   },
-        "relation"         => { type: :array   },
-        "formula"          => { type: :string  },
-        "created_time"     => { type: :datetime },
-        "last_edited_time" => { type: :datetime },
-      }.freeze
+    module Notion
+        module Schema
+            NOTION_TO_SEQUEL = {
+                "title" => :string,
+                "rich_text" => :string,
+                "number" => :float,
+                "select" => :string,
+                "multi_select" => :array,
+                "status" => :string,
+                "date" => :notion_date, # no Sequel typecast: kept as given
+                "checkbox" => :boolean,
+                "url" => :string,
+                "email" => :string,
+                "phone_number" => :string,
+                "people" => :array,
+                "relation" => :array,
+                "files" => :array,
+                "formula" => :string,
+                "created_time" => :string,
+                "last_edited_time" => :string
+            }.freeze
 
-      module_function
+            # Columns every row carries, besides the data source properties
+            PAGE_COLUMNS = [
+                [:id,       { type: :string,  db_type: "page_id",
+                              primary_key: true, allow_null: false }],
+                [:in_trash, { type: :boolean, db_type: "in_trash",
+                              allow_null: false }]
+            ].freeze
 
-      def notion_to_sequel(properties)
-        properties.map do |name, prop|
-          notion_type = prop["type"]
-          col_info    = (NOTION_TO_SEQUEL[notion_type] || { type: :string })
-                          .merge(notion_type: notion_type)
+            module_function
 
-          [name.to_sym, col_info]
+            # Data source properties => Sequel schema rows
+            def notion_to_sequel(properties)
+                PAGE_COLUMNS.map { |name, info| [name, info.dup] } +
+                    properties.map do |name, prop|
+                        [name.to_sym, column(prop["type"])]
+                    end
+            end
+
+            def column(notion_type)
+                { type: NOTION_TO_SEQUEL.fetch(notion_type, :string),
+                  generated: TypeMap::READ_ONLY_TYPES.include?(notion_type),
+                  db_type: notion_type,
+                  notion_type: notion_type,
+                  allow_null: true,
+                  default: nil,
+                  primary_key: false }
+            end
         end
-      end
     end
-  end
 end

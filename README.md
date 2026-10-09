@@ -1,0 +1,220 @@
+# sequel-notion
+
+A [Sequel](https://sequel.jeremyevans.net/) adapter for Notion. Each Notion
+**data source** (the tables inside a Notion database, API version
+`2026-03-11`) is a Sequel table: you read it with `where`, `order`,
+`limit` and `select`, write it with `insert`, `update` and `delete`, and
+can put a `Sequel::Model` on top of it.
+
+Every Sequel call becomes one or more Notion API requests. Nothing is
+translated to SQL. Clauses, selections and comparisons Notion cannot
+express raise a `Sequel::Error` instead of being dropped.
+
+
+## Requirements
+
+- Ruby **>= 3.4**
+- A Notion integration token, with the integration shared to the pages
+  and databases it should see
+
+
+## Installation
+
+```sh
+gem install sequel-notion
+```
+
+Or from a checkout:
+
+```sh
+bundle install
+bundle exec rake test
+```
+
+
+## Connecting
+
+```ruby
+require "sequel"
+
+DB = Sequel.connect(adapter: :notion, token: ENV["NOTION_TOKEN"])
+```
+
+| Option            | Meaning                                                         |
+|-------------------|-----------------------------------------------------------------|
+| `token`           | The integration token (required)                                |
+| `auto_register`   | On the first lookup, register every data source the token sees  |
+| `faraday_adapter` | Faraday adapter (default `Faraday.default_adapter`); the test suite passes `[:test, stubs]` |
+
+
+## Naming tables
+
+A table name is resolved to a data source id in this order:
+
+1. a name registered with `register_data_source` or
+   `register_all_data_sources`;
+2. with `auto_register: true`, every data source the token can see,
+   discovered once;
+3. a table name that is itself a data source id (32 hex digits, dashes
+   optional);
+4. a search for a data source whose title normalises to the table
+   name. The result is remembered.
+
+Titles normalise to snake case ASCII: `"My Tasks"` → `:my_tasks`,
+`"Électricité"` → `:electricite`.
+
+```ruby
+DB.register_data_source(:tasks, "<data source id>")
+DB.register_all_data_sources(database: "<database id>")
+DB.register_all_data_sources { |title, id| "notion_#{title}" }   # by search
+
+DB.tables                      # => [:tasks, ...]
+DB.data_sources(query: "Bills") # => [{id:, name:, parent_database_id:, ...}]
+```
+
+A name already bound to a different data source raises an error rather than
+being rebound.
+
+
+## Reading
+
+```ruby
+DB[:tasks].where(Status: "In Progress", Done: false)
+          .order(Sequel.desc(:Due))
+          .limit(25)
+          .all
+```
+
+Each row has `:id` (the page id), `:in_trash`, and one key per property,
+named as in Notion (`:"Due Date"` for a property with a space).
+
+| Sequel                                  | Notion filter                              |
+|-----------------------------------------|--------------------------------------------|
+| `where(P: v)`, `exclude(P: v)`          | `equals`, `does_not_equal`                 |
+| `where(P: nil)`                         | `is_empty` (`is_not_empty` when excluded)  |
+| `where(Done: true)`, `where(:Done)`     | checkbox `equals`                          |
+| `where(P: [a, b])`                      | `or` of `equals`                           |
+| `<`, `<=`, `>`, `>=`                    | number comparisons; `before`/`after`/`on_or_…` on dates |
+| `Sequel.like(:P, "%x%")`, `"x%"`, `"%x"`, `"x"` | `contains`, `starts_with`, `ends_with`, `equals` |
+| multi-select, people, relation `=`      | `contains`                                 |
+| formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
+| `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
+
+`order` maps to Notion sorts. `offset` is applied client side, so the rows it
+skips are still fetched. `count` pages through the results. Requests are
+paginated automatically.
+
+`where(id: "…")` or `where(id: [...])` fetches those pages directly,
+including pages in the trash (`:in_trash` says so). Several id conditions
+intersect. A missing page, or one from another data source, is no row.
+An `id` condition cannot be combined with other conditions.
+
+`select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
+the alias. Only plain, existing columns can be selected.
+
+
+## Writing
+
+```ruby
+id = DB[:tasks].insert(Name: "Write the adapter", Status: "Todo",
+                       Tags: %w[ruby notion], Due: Date.today)
+DB[:tasks].where(Status: "Todo").update(Status: "Done")
+DB[:tasks].where(id: id).delete          # moves the page to the trash
+```
+
+Values are encoded according to the property's Notion type, read from the
+data source:
+
+| Notion type                     | Ruby value                                   | `nil` clears to |
+|---------------------------------|----------------------------------------------|-----------------|
+| title, rich_text                | anything (`to_s`), split into 2000-character runs | `[]` |
+| number                          | `Numeric` (sent as Integer or Float), or a numeric `String` | `null` |
+| select, status                  | the option name                              | `null`          |
+| multi_select                    | an `Array` of names, or one name             | `[]`            |
+| date                            | `Date`, `Time`, a `Range` of them, an ISO 8601 `String`, or `{start:, end:}` | `null` |
+| checkbox                        | `true` / `false`                             | `false`         |
+| url, email, phone_number        | `to_s`                                       | `null`          |
+| relation                        | page id(s)                                   | `[]`            |
+| people                          | user id(s)                                   | `[]`            |
+| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them | `[]`    |
+
+Writing a computed property (formula, rollup, created/edited time or by,
+unique_id, button, verification) or an unknown property raises
+`Sequel::Error`. `insert` ignores `:id`; `update` ignores `:id` and
+turns `:in_trash` into trashing or restoring the page, so
+`where(id: id).update(in_trash: false)` restores a trashed page. A
+positional `insert(["a", 2])` fills the writable columns in schema order.
+
+`update` and `delete` first collect the matching page ids, then send one
+request per page.
+
+
+## Models
+
+```ruby
+class Task < Sequel::Model(DB[:tasks])
+    plugin :skip_saving_columns   # when the data source has computed properties
+end
+
+task = Task.create(Name: "Ship it", Status: "Todo")
+task.update(Status: "Done")
+Task[task.id].delete
+```
+
+The primary key is `:id`. A full `save` sends every column, so a model
+over a data source with computed properties needs Sequel's
+`skip_saving_columns` plugin, which skips the columns the schema marks
+`generated`. `update` and `save_changes` send only what changed. Date
+columns are not typecast, so a `Time` or a `Range` reaches Notion as
+given.
+
+Notion has no transactions: `DB.transaction` runs its block, swallows
+`Sequel::Rollback`, and rolls nothing back.
+
+
+## Schema
+
+`DB.schema(:tasks)` lists `:id`, `:in_trash` and each property, with
+`:db_type` set to its Notion type; computed properties are marked
+`generated: true`. It is cached per data source. `DB.table_exists?`
+answers by resolving the name and fetching the data source. Call
+`DB.refresh_schema!(:tasks)` after changing the data source's properties
+in Notion.
+
+
+## Errors, retries and logging
+
+- A failed request, or a response that is not valid JSON, raises
+  `Sequel::DatabaseError`, with Notion's error code and message in the
+  text. A 404 raises its subclass `Sequel::Notion::NotFoundError`
+  (`where(id:)` turns it into no row).
+- Responses 429, 502, 503 and 504 are retried up to four times, honouring
+  `Retry-After`. Page creation is retried only after a 429, so a timeout
+  cannot create a page twice.
+- Requests go to the database's loggers (`DB.loggers << Logger.new($stdout)`)
+  as `POST data_sources/…/query` with their body.
+
+
+## Known shortfalls
+
+- No joins, grouping, `distinct`, unions, raw SQL (`with_sql`), or
+  aggregates other than `count`. Each raises.
+- Filters compare a property with a value, never with another property or
+  an expression.
+- `offset` and `count` fetch the pages they skip or count.
+- `LIKE` patterns are limited to the shapes in the filter table above. A `_`
+  wildcard or a `%` in the middle raises. Notion's own case rules apply to
+  both `LIKE` and `ILIKE`.
+- Dates read back as the ISO 8601 `start` string; the `end` of a range is
+  dropped. Rollups and unique ids read back as Notion's raw hashes.
+- Notion truncates relation and people values, and title/rich_text
+  mentions, at 25 references per page. The adapter does not fetch the rest.
+- Notion's rate limit is 3 requests per second on most plans, so a large
+  `update` or `delete` is slow.
+- Not yet checked against the live API: filtering a title with the
+  `rich_text` key, and the `data_source_id` parent type on page creation.
+
+
+## License
+
+MIT — see `LICENSE.txt`.

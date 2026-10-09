@@ -1,0 +1,6 @@
+vendors/
+Gemfile.lock
+pkg/
+.bundle/
+CLAUDE.local.md
+.ruby-lsp/

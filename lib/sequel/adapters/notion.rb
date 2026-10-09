@@ -1,228 +1,164 @@
 # frozen_string_literal: true
 
+require "json"
+
 require "faraday"
 require "faraday/retry"
 require "sequel"
+
 require "sequel-notion/dataset"
+require "sequel-notion/errors"
+require "sequel-notion/model_support"
+require "sequel-notion/page_api"
+require "sequel-notion/registry"
 require "sequel-notion/schema"
 require "sequel-notion/type_map"
+require "sequel-notion/version"
 
 module Sequel
-module Notion
-    API_BASE    = "https://api.notion.com/v1"
-    API_VERSION = "2026-03-11"
+    module Notion
+        API_BASE    = "https://api.notion.com/v1"
+        API_VERSION = "2026-03-11"
 
-    class Database < Sequel::Database
-        set_adapter_scheme :notion
+        # Statuses worth another attempt; 429 carries Retry-After, which
+        # faraday-retry honours.
+        RETRY_STATUSES = [429, 502, 503, 504].freeze
 
+        # Creating a page is the one call a retry could duplicate: retry it
+        # only when Notion refused it outright (rate limited).
+        RETRY_IF = lambda do |env, _exception|
+            !(env.method == :post && env.url.path.end_with?("/pages")) ||
+                env.status == 429
+        end
 
-        # ----------------------------------------------------------
-        # Connection — a shared Faraday instance
-        # ----------------------------------------------------------
+        class Database < Sequel::Database
+            include PageApi
+            include Registry
 
-        def connect(_server)
-            token = opts[:token]
-            raise Error, 'Missing Notion token' unless token
+            set_adapter_scheme :notion
 
-            Faraday.new(url: API_BASE) do |f|
-                f.headers['Authorization']  = "Bearer #{token}"
-                f.headers['Notion-Version'] = API_VERSION
-                f.headers['Content-Type']   = 'application/json'
-
-                f.request  :retry, max: 3,
-                                   interval: 0.5,
-                                   backoff_factor: 2,
-                                   retry_statuses: [429, 502, 503, 504]
-                f.response :raise_error
-                f.response :json, content_type: /\bjson$/
-                f.adapter  Faraday.default_adapter
+            def initialize(...)
+                super
+                @data_source_cache = {}
             end
-        end
 
-        def connection
-            @connection ||= connect(nil)
-        end
+            # ----------------------------------------------------------
+            # Connection — one Faraday client per pooled connection
+            # ----------------------------------------------------------
 
-        def disconnect_connection(_conn) = nil
+            def connect(_server)
+                token = opts[:token]
+                raise Error, "Missing Notion token" unless token
 
-        def dataset_class_default = Notion::Dataset
+                Faraday.new(url: API_BASE) { build_stack(it, token) }
+            end
 
+            def disconnect_connection(_conn) = nil
 
-        # ----------------------------------------------------------
-        # Data source registry
-        # ----------------------------------------------------------
+            def dataset_class_default = Notion::Dataset
 
-        def register_data_source(name, datasource = nil, database: nil, query: nil)
-            @data_sources ||= {}
-            @data_sources[name.to_sym] = datasource
-            self
-        end
+            # Notion has no transactions: run the block as is, so that
+            # Sequel::Model (which wraps saves in one) works.
+            def transaction(_opts = OPTS)
+                synchronize { yield it }
+            rescue Rollback
+                nil
+            end
 
-        def register_all_data_sources(database: nil, query: nil, &mapper)
-            @data_sources ||= {}
-            data_sources(database:, query:).each do |ds| pp ds.inspect
-                name = if mapper
-                           mapper.(ds[:name], ds[:id])
-                       else
+            def table_exists?(name)
+                ds_id = data_source_id_for(name)
+                !ds_id.nil? && !data_source(ds_id).nil?
+            rescue NotFoundError
+                false
+            end
 
-                           (ds[:name] || ds[:id]).downcase
-                                                 .gsub(/[^a-z0-9]+/, "_")
-                                                 .gsub(/\A_|_\z/, "")
-                       end
-                @data_sources.merge!(name.to_sym => ds[:id]) do |k,o,n|
-                    o.tap {
-                        if o != n
-                            raise Error, "trying to add different source with the same name (#{k} => #{o} vs #{n})"
-                        end
-                    }
+            def in_transaction?(_opts = OPTS) = false
+
+            def supports_savepoints?            = false
+            def supports_schema_parsing?        = true
+            def supports_transaction_isolation_levels? = false
+
+            # ----------------------------------------------------------
+            # Schema introspection
+            # ----------------------------------------------------------
+
+            # Property name => Notion type, for one data source
+            def property_type_map(ds_id)
+                data_source(ds_id).transform_values { it["type"] }
+            end
+
+            def refresh_schema!(table_name)
+                ds_id = data_source_id_for(table_name)
+                Sequel.synchronize { @data_source_cache.delete(ds_id) }
+                remove_cached_schema(table_name)
+            end
+
+            # One Notion request: logged through Sequel's loggers, and any
+            # HTTP failure re-raised as a Sequel::DatabaseError.
+            def request(verb, path, body = nil)
+                synchronize do |conn|
+                    log_connection_yield("#{verb.upcase} #{path}", conn,
+                                         body && [body]) do
+                        conn.public_send(verb, path, body).body
+                    end
                 end
+            rescue Faraday::Error => e
+                raise database_error(e)
             end
 
-        end
+            private
 
-        def data_source_id_for(table_name)
-            @data_sources ||= {}
-
-            # Try explicit registry first
-            return @data_sources[table_name.to_sym] if @data_sources.key?(table_name.to_sym)
-
-            # Lazy auto-register all sources on first miss
-            if opts[:auto_register] && !@auto_registered
-                @auto_registered = true
-                register_all_data_sources
-                return @data_sources[table_name.to_sym] if @data_sources.key?(table_name.to_sym)
+            def build_stack(conn, token)
+                conn.headers["Authorization"]  = "Bearer #{token}"
+                conn.headers["Notion-Version"] = API_VERSION
+                conn.request :json
+                # raise_error must wrap retry, so retry sees the raw
+                # status before it is turned into an exception.
+                conn.response :raise_error
+                conn.request  :retry, retry_options
+                conn.response :json, content_type: /\bjson$/
+                conn.adapter(*Array(opts[:faraday_adapter] ||
+                                    Faraday.default_adapter))
             end
 
-            # Fallback: single name lookup
-            (data_sources(query: table_name.to_s).find do |ds|
-                ds[:name]&.downcase == table_name.to_s.downcase
-            end)&.dig(:id)
-        end
-
-
-        # ----------------------------------------------------------
-        # Schema introspection
-        # ----------------------------------------------------------
-
-        def schema(table, _opts = OPTS)
-            ds_id = data_source_id_for(table)
-            raise Error, "Unknown data source: #{table}" unless ds_id
-
-            resp  = connection.get("data_sources/#{ds_id}").body
-            props = resp['properties'] || {}
-
-            Schema.notion_to_sequel(props)
-        end
-
-        def tables
-            @data_sources ||= {}
-
-            # Force discovery if auto_register is on
-            if opts[:auto_register] && !@auto_registered
-                @auto_registered = true
-                register_all_data_sources
+            def retry_options
+                { max: 4,
+                  interval: 0.5,
+                  backoff_factor: 2,
+                  methods: %i[get patch delete],
+                  retry_if: RETRY_IF,
+                  retry_statuses: RETRY_STATUSES }
             end
 
-            @data_sources.keys
-        end
-
-        # List all data sources
-        def data_sources(database: nil, query: nil)
-            if database && query
-                raise ArgumentError, "database and query can't be both specified"
+            def database_error(error)
+                body   = error.response_body
+                status = error.response_status
+                detail = if body.is_a?(Hash)
+                             "#{body["code"]}: #{body["message"]}"
+                         else
+                             error.message
+                         end
+                klass  = status == 404 ? NotFoundError : DatabaseError
+                klass.new("Notion #{status || "request"} #{detail}")
+                     .tap { it.wrapped_exception = error }
             end
 
-            sources = []
+            # Data source object properties, fetched once and cached
+            def data_source(ds_id)
+                cached = Sequel.synchronize { @data_source_cache[ds_id] }
+                return cached if cached
 
-            if database
-                resp = connection.get("databases/#{database}").body
-                (resp['data_sources'] || []).map do |ds|
-                    ds.slice('id', 'name', 'icon', 'url', 'in_trash', 'properties')
-                        .transform_keys(&:to_sym)
-                        .merge(parent_database_id: database)
-                end
-            else
-                cursor  = nil
-                loop do
-                    params = {
-                        page_size: 100,
-                        filter: { property: 'object', value: 'data_source' }
-                    }
-                    params[:sort        ] =  { direction: 'descending',
-                                               timestamp: 'last_edited_time' }
-                    params[:query       ] = query  if query
-                    params[:start_cursor] = cursor if cursor
-
-                    resp = connection.post('search', params.to_json).body
-
-                    sources += (resp['results'] || [])
-                        .select {|ds| ds['object'] == 'data_source' }
-                        .map    {|ds|
-                          ds.slice('id', 'icon', 'url', 'in_trash', 'properties')
-                            .transform_keys(&:to_sym)
-                              .merge(parent_database_id:  ds.dig('parent', 'database_id'))
-                              .merge(:name => ds['title']&.map { it['plain_text'] }&.join)
-                        }
-
-                    break unless resp['has_more']
-                    cursor = resp['next_cursor']
-                end
-
-                sources
+                props = request(:get,
+                                "data_sources/#{ds_id}")["properties"] || {}
+                Sequel.synchronize { @data_source_cache[ds_id] = props }
             end
 
+            def schema_parse_table(table_name, _opts)
+                ds_id = data_source_id_for(table_name)
+                raise Error, "Unknown data source: #{table_name}" unless ds_id
+
+                Schema.notion_to_sequel(data_source(ds_id))
+            end
         end
-
-        # ----------------------------------------------------------
-        # Property type map cache (mutable — safe on Database)
-        # ----------------------------------------------------------
-
-        def property_type_map(ds_id)
-            @property_type_cache ||= {}
-            @property_type_cache[ds_id] ||=
-                begin
-                    resp  = connection.get("data_sources/#{ds_id}").body
-                    props = resp['properties'] || {}
-                    props.transform_values { |v| v['type'] }
-                end
-        end
-
-        def refresh_schema!(table_name)
-            ds_id = data_source_id_for(table_name)
-            @property_type_cache&.delete(ds_id)
-        end
-
-        # ----------------------------------------------------------
-        # Raw API access (used by Dataset)
-        # ----------------------------------------------------------
-
-        def notion_query(data_source_id, body)
-            connection.post(
-                "data_sources/#{data_source_id}/query",
-                body.to_json
-            ).body
-        end
-
-        def notion_create_page(data_source_id, properties)
-            connection.post("pages", {
-                                parent:     { type: "data_source", data_source_id: data_source_id },
-                                properties: properties
-                            }.to_json).body
-        end
-
-        def notion_update_page(page_id, properties)
-            connection.patch("pages/#{page_id}", {
-                                 properties: properties
-                             }.to_json).body
-        end
-
-        def notion_trash_page(page_id)
-            connection.patch("pages/#{page_id}", {
-                                 in_trash: true
-                             }.to_json).body
-        end
-
-
     end
-end
 end
