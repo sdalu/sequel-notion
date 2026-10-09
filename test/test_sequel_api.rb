@@ -178,6 +178,16 @@ class TestSequelApi < Minitest::Test
         assert_in_delta 1.5, @sent.last.dig("properties", "N", "number")
     end
 
+    # A model keeps an Integer it is given, as a read gives one back;
+    # other values still become Floats
+    def test_a_model_keeps_integers
+        rec = model.new
+        rec.N = 5
+        assert_same 5, rec.N
+        rec.N = "2.5"
+        assert_in_delta 2.5, rec.N
+    end
+
     def test_table_exists
         assert @db.table_exists?(:tasks)
         @stubs.post("/v1/search") { json(results: [], has_more: false) }

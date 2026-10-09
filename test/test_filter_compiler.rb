@@ -958,4 +958,18 @@ class TestFilterCompiler < Minitest::Test
         )
         assert_raises(Sequel::Error) { rollup(Last: 123) }
     end
+
+    # The page's own columns, and nil on a unique ID, say why they raise
+    def test_page_columns_and_unique_id_nil_say_why
+        {
+            @db[:t].where(id: "x").or(N: 1) => /id.*alone/,
+            @db[:t].where(in_trash: true).or(N: 1) => /in_trash.*page's own/,
+            @db[:t].where(UID: nil) => /never empty/,
+            @db[:t].exclude(UID: nil) => /never empty/,
+            @db[:t].where(UID: [1, nil]) => /never empty/
+        }.each do |ds, message|
+            error = assert_raises(Sequel::Error) { compile(ds.opts[:where]) }
+            assert_match message, error.message
+        end
+    end
 end

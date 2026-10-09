@@ -107,6 +107,12 @@ module Sequel
 
             private
 
+            # A number column is :float, and Sequel's model typecast would
+            # turn 5 into 5.0; Notion keeps, and reads back, an Integer
+            def typecast_value_float(value)
+                value.is_a?(Integer) ? value : super
+            end
+
             def refuse_rollback_always!(opts)
                 return unless opts[:rollback] == :always
 

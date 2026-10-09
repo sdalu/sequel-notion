@@ -173,6 +173,12 @@
 - A date filter value that is not a `Date`, `Time`, `DateTime` or ISO
   8601 string raises instead of being sent as its `to_s`
   (`where(Due: 123)` sent `"123"`).
+- A model keeps an Integer given to a number column (`rec.N = 5` is
+  `5`, as a read gives back) instead of Sequel's float typecast turning
+  it into `5.0`.
+- Filtering on `id` or `in_trash` outside an id lookup
+  (`where(id: x).or(...)`) says they are the page's own columns instead
+  of "Unknown property"; `nil` on a unique ID says it is never empty.
 - `exclude`, `NOT IN` and other negations on a rollup leave out pages
   whose rollup is empty, as on other properties: Notion's rollup
   `does_not_equal` matched an average over no relation (checked live).

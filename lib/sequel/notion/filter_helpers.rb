@@ -18,10 +18,21 @@ module Sequel
             # ----------------------------------------------------------
 
             def lookup_type!(name)
+                raise page_column_error(name) if
+                    TypeMap::PAGE_KEYS.include?(name)
+
                 @prop_types[name] or
                     raise Sequel::Error,
                           "Unknown property '#{name}'. " \
                           "Available: #{@prop_types.keys.join(", ")}"
+            end
+
+            # id and in_trash are the page's own, no property to filter on
+            def page_column_error(name)
+                hint = ": look pages up by id alone, where(id: ...)" if
+                    name == "id"
+                Sequel::Error.new("'#{name}' is the page's own column, " \
+                                  "which Notion cannot filter on#{hint}")
             end
 
             def filter_key_for!(name, type)
@@ -35,9 +46,9 @@ module Sequel
                 ops = FilterTables::SUPPORTED_OPS.fetch(key, [])
                 return if ops.include?(op)
 
-                raise Sequel::Error,
-                      "Operator '#{op}' not supported for " \
-                      "#{key} property '#{name}'"
+                why = " (never empty)" if key == "unique_id" && op =~ /empty/
+                raise Sequel::Error, "Operator '#{op}' not supported for " \
+                                     "#{key} property '#{name}'#{why}"
             end
 
             def equal_to_contains(op)
