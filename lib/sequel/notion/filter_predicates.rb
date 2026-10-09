@@ -79,18 +79,22 @@ module Sequel
             # Bare column (rule B)
             # ----------------------------------------------------------
 
+            # A checkbox, or a formula through its checkbox key
             def compile_bare_column(expr, value: true)
                 name = FilterCompiler.property_name(expr)
                 type = lookup_type!(name)
-                key  = filter_key_for!(name, type)
-
-                unless key == "checkbox"
-                    raise Sequel::Error,
-                          "Bare column '#{name}' must be a checkbox " \
-                          "property, got type '#{type}'"
+                case filter_key_for!(name, type)
+                when "checkbox"
+                    { "property" => name, "checkbox" => { "equals" => value } }
+                when "formula"
+                    compile_formula_comparison(name, :"=", value)
+                else raise bare_column_error(name, type)
                 end
+            end
 
-                { "property" => name, "checkbox" => { "equals" => value } }
+            def bare_column_error(name, type)
+                Sequel::Error.new("Bare column '#{name}' must be a checkbox " \
+                                  "or formula property, got type '#{type}'")
             end
 
             # ----------------------------------------------------------
@@ -129,8 +133,12 @@ module Sequel
                 contains_type?(key) ? equal_to_contains(base_op) : base_op
             end
 
+            # A nil in the list means empty, as `where(P: nil)` does
             def in_filter(sequel_op, name, key, base_op, value)
                 leaves = value.map do |v|
+                    next null_check_filter(name, empty: sequel_op == :IN) if
+                        v.nil?
+
                     { "property" => name,
                       key => { base_op => coerce_value(v, key) } }
                 end

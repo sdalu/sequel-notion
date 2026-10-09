@@ -41,6 +41,16 @@ the left (`5 < n`) is mirrored. `exclude` arrives already inverted by
 Sequel. The explicit `negate` table covers the `NOT` that survives, and an
 operator with no Notion inverse (`starts_with`) raises.
 
+`nil` means empty wherever it appears: `where(P: nil)` is `is_empty`, and
+so is a `nil` inside a list, `where(P: [a, nil])`. SQL's `IN` never
+matches `NULL`, but the adapter has no `NULL` to be faithful to, and
+passing `nil` on as a value sent `""`, which Notion matches as empty for
+some types and rejects for others (a date answers 400).
+
+Sorts can only describe what Notion does. Notion puts empty values last
+in both directions (checked live), so `nulls: :last` is accepted as a
+no-op and `nulls: :first` raises.
+
 ## Writes are typed by the schema
 
 `TypeMap.row_to_properties` takes the property type map and builds each

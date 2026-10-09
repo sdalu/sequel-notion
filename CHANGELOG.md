@@ -50,6 +50,13 @@
 - With `auto_register`, two data sources sharing a name no longer break
   every lookup: only that name raises, until `register_data_source`
   picks one, and a data source id resolves without discovery.
+- A bare formula column, `where(:F)` or `exclude(:F)`, filters on its
+  checkbox result instead of raising.
+- A `nil` in a list, `where(P: [a, nil])`, means empty, as
+  `where(P: nil)` does; it used to be sent as `""`, which Notion rejects
+  for a date.
+- `order(..., nulls: :first)` raises instead of being dropped; Notion
+  always sorts empty values last.
 
 ## 0.1.0
 

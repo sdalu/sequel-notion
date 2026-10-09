@@ -68,4 +68,16 @@ class TestSortCompiler < Minitest::Test
     def test_unsupported_order_expression_raises
         assert_raises(Sequel::Error) { compile([5]) }
     end
+
+    # Notion sorts empty values last in both directions
+    def test_nulls_last_is_what_notion_does
+        order = @db[:t].order(Sequel.desc(:N, nulls: :last)).opts[:order]
+        assert_equal([{ "property" => "N", "direction" => "descending" }],
+                     compile(order))
+    end
+
+    def test_nulls_first_raises
+        order = @db[:t].order(Sequel.asc(:N, nulls: :first)).opts[:order]
+        assert_raises(Sequel::Error) { compile(order) }
+    end
 end

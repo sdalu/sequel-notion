@@ -229,6 +229,19 @@ class TestFilterCompiler < Minitest::Test
                      compile(expr))
     end
 
+    def test_bare_formula_column_is_its_checkbox
+        assert_equal(
+            { "property" => "F",
+              "formula" => { "checkbox" => { "equals" => true } } },
+            compile(:F)
+        )
+        assert_equal(
+            { "property" => "F",
+              "formula" => { "checkbox" => { "equals" => false } } },
+            compile(@db[:t].exclude(:F).opts[:where])
+        )
+    end
+
     def test_bare_non_checkbox_raises
         assert_raises(Sequel::Error) { compile(:N) }
     end
@@ -247,6 +260,28 @@ class TestFilterCompiler < Minitest::Test
                     { "property" => "N", "number" => { "equals" => 3 } }
                 ]
             },
+            compile(expr)
+        )
+    end
+
+    # nil in a list means empty, as where(P: nil) does, whatever the type
+    def test_in_with_nil_is_empty
+        expr = @db[:t].where(N: [1, nil]).opts[:where]
+        assert_equal(
+            { "or" => [{ "property" => "N", "number" => { "equals" => 1 } },
+                       { "property" => "N",
+                         "number" => { "is_empty" => true } }] },
+            compile(expr)
+        )
+    end
+
+    def test_not_in_with_nil_is_not_empty
+        expr = @db[:t].exclude(Tags: ["a", nil]).opts[:where]
+        assert_equal(
+            { "and" => [{ "property" => "Tags",
+                          "multi_select" => { "does_not_contain" => "a" } },
+                        { "property" => "Tags",
+                          "multi_select" => { "is_not_empty" => true } }] },
             compile(expr)
         )
     end

@@ -23,7 +23,14 @@ module Sequel
                 end
             end
 
+            # Notion sorts empty values last in either direction, so only
+            # NULLS LAST (or no NULLS clause) can be honoured
             def compile_ordered(clause)
+                if clause.nulls == :first
+                    raise Sequel::Error,
+                          "Notion sorts empty values last: #{clause.inspect}"
+                end
+
                 direction = clause.descending ? "descending" : "ascending"
                 { "property" => FilterCompiler.property_name(clause.expression),
                   "direction" => direction }

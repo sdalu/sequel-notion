@@ -100,15 +100,17 @@ source that has one raises; rename the property in Notion.
 |-----------------------------------------|--------------------------------------------|
 | `where(P: v)`, `exclude(P: v)`          | `equals`, `does_not_equal`                 |
 | `where(P: nil)`                         | `is_empty` (`is_not_empty` when excluded)  |
-| `where(Done: true)`, `where(:Done)`     | checkbox `equals`                          |
-| `where(P: [a, b])`                      | `or` of `equals`                           |
+| `where(Done: true)`, `where(:Done)`     | checkbox `equals`, also for a checkbox formula |
+| `where(P: [a, b])`                      | `or` of `equals`; a `nil` in the list is `is_empty` |
 | `<`, `<=`, `>`, `>=`                    | number comparisons; `before`/`after`/`on_or_…` on dates |
 | `Sequel.like(:P, "%x%")`, `"x%"`, `"%x"`, `"x"` | `contains`, `starts_with`, `ends_with`, `equals` |
 | multi-select, people, relation `=`      | `contains`                                 |
 | formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
 | `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
 
-`order` maps to Notion sorts. `offset` is applied client side, so the rows it
+`order` maps to Notion sorts. Notion puts empty values last in both
+directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
+`offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
 paginated automatically.
 
