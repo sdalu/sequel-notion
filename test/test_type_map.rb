@@ -53,6 +53,17 @@ class TestTypeMap < Minitest::Test
         chunks.each { |c| assert_equal "text", c["type"] }
     end
 
+    # Notion counts UTF-16 units: an emoji is two, and is never cut
+    def test_rich_text_runs_hold_2000_utf16_units
+        str    = "#{"a" * 1999}😀#{"😀" * 1500}"
+        chunks = TM.build_property(str, "rich_text")["rich_text"]
+                   .map { it["text"]["content"] }
+
+        assert_equal str, chunks.join
+        assert_equal([1999, 2000, 1002],
+                     chunks.map { it.encode("UTF-16LE").bytesize / 2 })
+    end
+
     # ----------------------------------------------------------
     # number
     # ----------------------------------------------------------

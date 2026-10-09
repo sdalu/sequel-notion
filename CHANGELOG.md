@@ -28,6 +28,8 @@
   page's own column.
 - `where(id: [a, a])` gives one row, and an id matches itself written
   with or without dashes.
+- Text is split into runs of 2000 UTF-16 units, the length Notion
+  checks, so a long text with emoji is no longer rejected.
 - NaN and Infinity, in a write or a filter, and an external file URL that
   does not parse raise `Sequel::Error` instead of a JSON or URI error; a
   write names the property. A file URL with no path is named by the URL rather

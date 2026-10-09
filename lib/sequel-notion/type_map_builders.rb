@@ -14,16 +14,20 @@ module Sequel
             def build_string(value) = value&.to_s
 
             # title / rich_text: to_s, split into text objects of at most
-            # 2000 characters each.
+            # 2000 characters each, as Notion counts them (UTF-16 units)
             def build_rich_text(value)
-                return [] if value.nil?
-
-                str = value.to_s
-                return [] if str.empty?
-
-                str.chars.each_slice(2000).map do |chunk|
-                    { "type" => "text", "text" => { "content" => chunk.join } }
+                text_runs(value.to_s).map do |run|
+                    { "type" => "text", "text" => { "content" => run } }
                 end
+            end
+
+            # A character outside the BMP counts two and is never split
+            def text_runs(str)
+                units = 0
+                str.each_char.slice_before do |c|
+                    n = c.ord > 0xFFFF ? 2 : 1
+                    (units += n) > 2000 && (units = n)
+                end.map(&:join)
             end
 
             def build_number(value)
@@ -57,10 +61,7 @@ module Sequel
             end
 
             def build_multi_select(value)
-                return [] if value.nil?
-
-                values = value.is_a?(Array) ? value : [value]
-                values.map { |v| { "name" => v.to_s } }
+                Array(value).map { { "name" => it.to_s } }
             end
 
             def build_date(value)

@@ -131,7 +131,7 @@ data source:
 
 | Notion type                     | Ruby value                                   | `nil` clears to |
 |---------------------------------|----------------------------------------------|-----------------|
-| title, rich_text                | anything (`to_s`), split into 2000-character runs | `[]` |
+| title, rich_text                | anything (`to_s`), split into runs of 2000 characters as Notion counts them (an emoji is two) | `[]` |
 | number                          | a finite `Numeric` (sent as Integer or Float), or a numeric `String` | `null` |
 | select, status                  | the option name                              | `null`          |
 | multi_select                    | an `Array` of names, or one name             | `[]`            |
@@ -229,8 +229,6 @@ in Notion.
   page creation with the `data_source_id` parent; writing, reading back
   and clearing every writable type; trashing and restoring; and a
   `Sequel::Model` create, update and destroy.
-- Notion counts the 2000-character limit of a text run in UTF-16 units,
-  so a title or text holding more than about 1000 emoji is rejected.
 
 
 ## License
