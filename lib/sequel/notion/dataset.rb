@@ -4,6 +4,7 @@ require "sequel/notion/dataset_aggregates"
 require "sequel/notion/dataset_compounds"
 require "sequel/notion/dataset_computed"
 require "sequel/notion/dataset_grouping"
+require "sequel/notion/dataset_joins"
 require "sequel/notion/dataset_pages"
 require "sequel/notion/dataset_selection"
 require "sequel/notion/dataset_truncation"
@@ -16,6 +17,7 @@ module Sequel
             include DatasetCompounds
             include DatasetComputed
             include DatasetGrouping
+            include DatasetJoins
             include DatasetPages
             include DatasetSelection
             include DatasetTruncation

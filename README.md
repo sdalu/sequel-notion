@@ -146,6 +146,21 @@ first row of each value, in the query's order. `union` (with or without
 `all:`), `intersect` and `except` combine the rows of two queries as SQL
 does; `order`, `offset` and `limit` then apply to the result, and a
 `where` on it raises.
+
+`join` and `left_join` match rows in Ruby on one equality, and a
+relation matches every page it lists, so a join follows it:
+
+```ruby
+DB[:tasks].join(:projects, id: :Project)
+          .where(Sequel[:projects][:Budget] > 1000)
+          .select(Sequel[:tasks][:Name].as(:task),
+                  Sequel[:projects][:Name].as(:project))
+```
+
+Each `where` condition that tests one table runs in Notion, on that
+table's query. A column both tables have must be qualified. Without a
+`select`, a later table's column wins a shared name, as with SQL
+adapters.
 `offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
 paginated automatically. `paged_each` follows Notion's cursor, as
@@ -261,11 +276,12 @@ in Notion.
 
 ## Known shortfalls
 
-- No joins, and no raw SQL (`with_sql`): there is no SQL to run it.
-  Each raises.
-- Aggregates, `distinct` (and `DISTINCT ON`), `group` and `having`, and
-  `union`, `intersect` and `except` are computed in Ruby, so they read
-  every row the queries return (100 per request).
+- No raw SQL (`with_sql`): there is no SQL to run it. Joins are inner or
+  left, on one equality; right, full and cross joins, and a `where`
+  condition testing two tables, raise.
+- Joins, aggregates, `distinct` (and `DISTINCT ON`), `group` and
+  `having`, and `union`, `intersect` and `except` are computed in Ruby,
+  so they read every row the queries return (100 per request).
 - Filters compare a property with a value, never with another property or
   an expression.
 - `offset` and `count` fetch the pages they skip or count.
@@ -296,7 +312,9 @@ in Notion.
   a number, dates and titles read as values; filters and sorts on a sum
   rollup; `nil` filters on string and number formulas and a sum rollup;
   aggregates, `distinct`, `DISTINCT ON`, `group`, `having`, `union`,
-  `intersect` and `except` over rows with and without values;
+  `intersect` and `except` over rows with and without values; inner and
+  left joins through a relation, with a `where` per side, a sum and a
+  group over them;
   formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.

@@ -10,19 +10,24 @@ module Sequel
             private
 
             # Rows Notion cannot compute, worked out in Ruby
-            def computed? = compound? || @opts[:group] || @opts[:distinct]
+            def computed?
+                compound? || @opts[:group] || @opts[:distinct] || joined?
+            end
 
+            # Groups and DISTINCT over joined rows: the join comes last
             def computed_rows(&)
                 return compound_rows(&) if compound?
                 return grouped_rows(&) if @opts[:group]
+                return distinct_rows(&) if @opts[:distinct]
 
-                distinct_rows(&)
+                join_rows(&)
             end
 
             def computed_columns
                 return compound_inner.columns if compound?
+                return grouped_outputs.map(&:first) if @opts[:group]
 
-                grouped_outputs.map(&:first) if @opts[:group]
+                join_columns_out(join_sources) if joined?
             end
 
             # ORDER over rows already computed (groups, combined rows)

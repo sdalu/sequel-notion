@@ -57,9 +57,11 @@ module Sequel
                                     .map { project(it, sel) }
             end
 
+            # A column's values, read under a hidden name so a qualified
+            # column keeps its table
             def column_values(arg)
-                column = FilterCompiler.property_name(arg).to_sym
-                naked.select(column).map(column).compact
+                FilterCompiler.property_name(arg)
+                naked.select(Sequel.as(arg, :__value)).map(:__value).compact
             end
 
             # Every row first, then OFFSET and LIMIT over the distinct

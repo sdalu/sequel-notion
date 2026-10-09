@@ -127,6 +127,10 @@
   live). `having` filters the groups, with SQL's three-valued logic.
 - `distinct(:col)` (`DISTINCT ON`), `union` (and `all:`), `intersect` and
   `except` work, computed in Ruby (checked live).
+- `join` and `left_join` on one equality, matched in Ruby: a relation
+  matches the pages it lists, each `where` condition runs in Notion on
+  the one table it tests, and aggregates and groups keep a qualified
+  column's table (checked live through a relation).
 - Formula negations need no guard: Notion already excludes an empty
   formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,

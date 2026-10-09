@@ -42,9 +42,17 @@ rather than its rows, so memory grows with the groups, not the rows.
 `having` is evaluated over those groups with SQL's three-valued logic,
 an aggregate it writes out being computed as a hidden output.
 `DISTINCT ON` keeps the first row of each key; `union`, `intersect` and
-`except` read each query's rows and combine them as SQL does. Joins stay
-refused: they would hold one data source's rows in memory, and Sequel's
-join API assumes SQL table aliasing.
+`except` read each query's rows and combine them as SQL does.
+
+Joins are inner or left, on one equality, matched in Ruby with a hash on
+the joined side, whose rows are held in memory. Each `where` condition
+is sent with the query of the one table it tests (`JoinWhere`); one that
+tests two tables has no Notion filter and raises rather than be
+evaluated over every pair. A relation is an Array of page ids, so an
+equality with it matches every id it lists: that is what makes
+`join(:projects, id: :Project)` follow the relation. Aggregates and
+groups read columns under hidden names (`Sequel.as(column, :__c0)`), so
+a qualified column keeps its table through them.
 
 Clauses Notion cannot express (`join`, `group`, `having`, `DISTINCT ON`,
 unions, locks) raise instead of being dropped. A query that silently

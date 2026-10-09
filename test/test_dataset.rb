@@ -133,7 +133,7 @@ class TestDataset < Minitest::Test
 
     def test_unsupported_clause_raises
         assert_raises(Sequel::Error) do
-            @db[:tasks].join(:other, id: :id).all
+            @db[:tasks].for_update.all
         end
     end
 

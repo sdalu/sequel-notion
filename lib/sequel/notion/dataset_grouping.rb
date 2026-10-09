@@ -31,9 +31,9 @@ module Sequel
             end
 
             def group_rows(outs)
-                keys = grouped_keys
-                accumulate(keys, outs).map do |key, accs|
-                    grouped_row(keys, outs, key, accs.each)
+                slots = group_slots(outs)
+                accumulate(outs, slots).map do |key, accs|
+                    grouped_row(outs, key, accs.each)
                 end
             end
 
@@ -43,27 +43,34 @@ module Sequel
                 end
             end
 
-            def grouped_keys = @opts[:group].map { group_column(it) }
-
             def group_column(expr) = FilterCompiler.property_name(expr).to_sym
+
+            # A column's identity: its table when qualified, and its name
+            def column_key(expr)
+                return [expr.table.to_s, expr.column.to_sym] if
+                    expr.is_a?(SQL::QualifiedIdentifier)
+
+                [nil, group_column(expr)]
+            end
+
+            def group_keys = @opts[:group].map { column_key(it) }
 
             # [name, :key, column] or [name, function, column (nil for *)]
             def grouped_outputs
-                keys = grouped_keys
-                (@opts[:select] || keys).map { group_output(it, keys) }
+                (@opts[:select] || @opts[:group]).map { group_output(it) }
             end
 
-            def group_output(expr, keys)
+            def group_output(expr)
                 name = expr.alias.to_sym if expr.is_a?(SQL::AliasedExpression)
                 expr = expr.expression if name
                 return aggregate_output(expr, name) if expr.is_a?(SQL::Function)
 
-                column = group_column(expr)
-                unless keys.include?(column)
-                    raise Error, "#{column} is neither grouped nor aggregated"
+                key = column_key(expr)
+                unless group_keys.include?(key)
+                    raise Error, "#{key.last} is neither grouped nor aggregated"
                 end
 
-                [name || column, :key, column]
+                [name || key.last, :key, expr]
             end
 
             def aggregate_output(func, name)
@@ -77,7 +84,7 @@ module Sequel
             def aggregate_column(func, function)
                 arg = func.args.first
                 if plain_aggregate?(func, function)
-                    return group_column(arg) unless star?(func)
+                    return arg.tap { column_key(it) } unless star?(func)
                     return if function == :count
                 end
 
@@ -93,33 +100,44 @@ module Sequel
                     func.args.size <= 1 && (func.opts.keys - [:*]).empty?
             end
 
-            def accumulate(keys, outs)
-                aggs   = outs.reject { it[1] == :key }
-                groups = {}
-                group_source(keys, aggs).each do |row|
-                    accs = groups[keys.map { row[it] }] ||=
-                        aggs.map { GroupAccumulator.new(it[1]) }
-                    aggs.each_with_index do |(_, _, col), i|
-                        accs[i].add(col ? row[col] : 1)
-                    end
+            # column key => [column, hidden name it is read under]
+            def group_slots(outs)
+                columns = @opts[:group] + outs.filter_map(&:last)
+                columns.uniq { column_key(it) }.each_with_index
+                       .to_h { |col, i| [column_key(col), [col, :"__c#{i}"]] }
+            end
+
+            def accumulate(outs, slots)
+                aggs  = outs.reject { it[1] == :key }
+                names = group_keys.map { slots[it].last }
+                group_source(slots).each_with_object({}) do |row, groups|
+                    accs = groups[names.map { row[it] }] ||= accumulators(aggs)
+                    add_row(row, aggs.zip(accs), slots)
                 end
-                groups
+            end
+
+            def accumulators(aggs) = aggs.map { GroupAccumulator.new(it[1]) }
+
+            def add_row(row, pairs, slots)
+                pairs.each do |(_, _, col), acc|
+                    acc.add(col ? row[slots[column_key(col)].last] : 1)
+                end
             end
 
             # The rows to group: the WHERE kept, Notion asked for nothing
             # else, and only the columns the groups need
-            def group_source(keys, aggs)
-                cols = (keys + aggs.filter_map(&:last)).uniq
+            def group_source(slots)
                 clone(group: nil, select: nil, order: nil, limit: nil,
                       offset: nil, distinct: nil, having: nil)
-                    .naked.select(*cols)
+                    .naked.select(*slots.values.map { Sequel.as(*it) })
             end
 
-            def grouped_row(keys, outs, key, accs)
-                # an output is a group key, or the next aggregate's value
+            def grouped_row(outs, key, accs)
+                keys = group_keys
                 outs.to_h do |name, kind, col|
-                    [name,
-                     kind == :key ? key[keys.index(col)] : accs.next.value]
+                    next [name, accs.next.value] unless kind == :key
+
+                    [name, key[keys.index(column_key(col))]]
                 end
             end
         end
