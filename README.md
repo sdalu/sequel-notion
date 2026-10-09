@@ -117,6 +117,7 @@ a date, or an `Array` of the rolled-up values read the same way.
 | multi-select, people, relation `=`      | `contains`                                 |
 | formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
 | unique id `=`, `<`, …                   | `unique_id` on its number, given as `62` or `"TK-62"` |
+| rollup `=`, `<`, `IN`, …                | nested under `number` or `date`, for a rollup whose function gives one value (`sum`, `count`, `latest_date`, …) |
 | `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
 
 Negations follow SQL, where `!=` never matches `NULL`: Notion's
@@ -255,8 +256,10 @@ in Notion.
   wildcard or a `%` in the middle raises. Notion's own case rules apply to
   both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
   Notion matches whole values only, so a pattern with any `%` raises.
-- Rollups cannot be filtered (each raises), and a formula cannot be
-  filtered by `nil`: its result type is not known before a page is read.
+- A rollup that keeps every value (`show_original`, `show_unique`) cannot
+  be filtered: Notion's `any`/`every`/`none` have no SQL reading. Nor can
+  a formula or a rollup be filtered by `nil`, its result type being
+  unknown before a page is read.
 - A page lists at most 25 relations or people; a row's relation flagged
   `has_more`, or 25 people (Notion flags none), is completed from the
   page property endpoint, page by page, for the columns a
@@ -275,7 +278,8 @@ in Notion.
   excluding empty values, and filters merged or distributed to two
   levels; a relation of 26 pages read in full; a date range read back
   as a `Range` and written back; unique ID filters and sorts; rollups of
-  a number, dates and titles read as values; formula
+  a number, dates and titles read as values; filters and sorts on a sum
+  rollup; formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 

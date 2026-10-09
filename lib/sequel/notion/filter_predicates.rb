@@ -19,9 +19,9 @@ module Sequel
                 type = lookup_type!(name)
                 key = filter_key_for!(name, type)
 
-                if key == "formula"
+                if %w[formula rollup].include?(key)
                     raise Sequel::Error,
-                          "Cannot check emptiness of formula property " \
+                          "Cannot check emptiness of #{key} property " \
                           "'#{name}' (result type unknown)"
                 end
 
@@ -106,8 +106,9 @@ module Sequel
                 name = FilterCompiler.property_name(left)
                 validate_in_array!(value, name)
 
-                type = lookup_type!(name)
-                key  = filter_key_for!(name, type)
+                key = filter_key_for!(name, lookup_type!(name))
+                return nested_in(expr.op, name, value, key) if
+                    FilterNested::NESTED_KEYS.include?(key)
 
                 base_op = in_base_operator(expr.op, key)
                 ensure_supported!(name, key, base_op)

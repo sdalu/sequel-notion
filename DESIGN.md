@@ -67,6 +67,14 @@ SQL, and the date `!=` already followed SQL. Formula and unique ID
 leaves need no guard: Notion leaves an empty formula result out of its
 negations (checked live), and a unique ID is never empty.
 
+A rollup filters through its value, nested like a formula's (rule R):
+`{rollup: {number: …}}` or `{rollup: {date: …}}`. Which one is read from
+the function in the data source schema, not from the value's class as a
+formula's is, because Notion answers 400 when they disagree (checked
+live). A rollup that keeps every value is filtered in Notion with
+`any`, `every` or `none`, which a SQL comparison does not say, so it
+raises.
+
 The guard adds a level, and Notion nests `and`/`or` two levels deep at
 most, so `FilterShape` merges an `and` inside an `and` and distributes a
 level too many into clauses (`(a & b) | c` as `(a | c) & (b | c)`), up

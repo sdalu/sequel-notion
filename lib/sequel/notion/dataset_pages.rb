@@ -73,8 +73,7 @@ module Sequel
             end
 
             def filter(ds_id)
-                FilterCompiler.new(db.property_type_map(ds_id))
-                              .compile(@opts[:where])
+                FilterCompiler.for(db, ds_id).compile(@opts[:where])
             end
 
             def notion_page_size

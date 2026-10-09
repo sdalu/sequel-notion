@@ -29,24 +29,25 @@ module Sequel
                 type_key = (filter.keys - ["property"]).first
                 inner = filter[type_key]
 
-                if type_key == "formula"
-                    negate_formula_leaf(filter, inner)
+                if %w[formula rollup].include?(type_key)
+                    negate_nested_leaf(filter, type_key, inner)
                 else
                     negate_simple_leaf(filter, type_key, inner)
                 end
             end
 
-            def negate_formula_leaf(filter, inner)
+            def negate_nested_leaf(filter, key, inner)
                 inner_key = inner.keys.first
                 cond = inner[inner_key]
                 op = cond.keys.first
                 if inner_key == "date" && op == "equals"
-                    return formula_date_not_equal(filter["property"], cond[op])
+                    return nested_date_not_equal(filter["property"], key,
+                                                 cond[op])
                 end
 
                 new_op = negated_operator!(op, filter["property"])
                 { "property" => filter["property"],
-                  "formula" => { inner_key => { new_op => cond[op] } } }
+                  key => { inner_key => { new_op => cond[op] } } }
             end
 
             def negate_simple_leaf(filter, type_key, inner)
@@ -60,13 +61,6 @@ module Sequel
 
                 { "property" => filter["property"],
                   type_key => { new_op => inner[op] } }
-            end
-
-            def formula_date_not_equal(name, value)
-                { "or" => %w[before after].map do |op|
-                    { "property" => name,
-                      "formula" => { "date" => { op => value } } }
-                end }
             end
 
             def negated_operator!(op, property)

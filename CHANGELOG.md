@@ -111,6 +111,10 @@
   `order(:ID)` (checked live).
 - A rollup reads back as its value (a number, a date, or an `Array` of
   the rolled-up values) instead of a raw hash (checked live).
+- A rollup whose function gives one value (a number or a date) filters
+  and sorts like one: `where(Sum: 7)`, `Sum > 1`, `exclude`, `IN`
+  (checked live for a sum). `IN` on a formula works too, and a formula
+  date `!=` is `before or after` instead of raising.
 - Formula negations need no guard: Notion already excludes an empty
   formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,

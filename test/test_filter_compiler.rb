@@ -751,6 +751,70 @@ class TestFilterCompiler < Minitest::Test
         assert_raises(Sequel::Error) { compile(expr) }
     end
 
+    # A rollup filters on its value when its function gives one (a
+    # number or a date), nested like a formula; one that keeps every
+    # value (show_original) has no SQL reading and raises
+    def rollups
+        Sequel::Notion::FilterCompiler.new(
+            { "Sum" => "rollup", "Last" => "rollup", "All" => "rollup" },
+            { "Sum" => "number", "Last" => "date", "All" => "array" }
+        )
+    end
+
+    def rollup(expr) = rollups.compile(@db[:t].where(expr).opts[:where])
+
+    def test_rollup_filters_on_its_value
+        assert_equal(leaf("Sum", "rollup", "number" => { "equals" => 7 }),
+                     rollup(Sum: 7))
+        assert_equal(leaf("Sum", "rollup",
+                          "number" => { "greater_than" => 1 }),
+                     rollup(Sequel[:Sum] > 1))
+        assert_equal(leaf("Last", "rollup",
+                          "date" => { "on_or_after" => "2026-01-01" }),
+                     rollup(Sequel[:Last] >= Date.new(2026, 1, 1)))
+    end
+
+    def test_rollup_negations
+        assert_equal(leaf("Sum", "rollup",
+                          "number" => { "does_not_equal" => 7 }),
+                     rollup(Sequel.~(Sum: 7)))
+        assert_equal(leaf("Sum", "rollup", "number" => { "equals" => 7 }),
+                     rollup(Sequel::SQL::BooleanExpression.new(
+                         :NOT, Sequel.~(Sum: 7)
+                     )))
+        assert_equal(
+            { "or" => %w[before after].map do |op|
+                leaf("Last", "rollup", "date" => { op => "2026-01-01" })
+            end },
+            rollup(Sequel::SQL::BooleanExpression.new(
+                :NOT, Sequel.expr(Last: Date.new(2026, 1, 1))
+            ))
+        )
+    end
+
+    # IN on a formula or rollup is an or of nested equalities
+    def test_nested_in_lists
+        assert_equal(
+            { "or" => [0, 7].map do |n|
+                leaf("Sum", "rollup", "number" => { "equals" => n })
+            end },
+            rollup(Sum: [0, 7])
+        )
+        expr = @db[:t].exclude(F: %w[a b]).opts[:where]
+        assert_equal(
+            { "and" => %w[a b].map do |v|
+                leaf("F", "formula", "string" => { "does_not_equal" => v })
+            end },
+            compile(expr)
+        )
+    end
+
+    def test_rollup_of_every_value_and_nil_raise
+        assert_raises(Sequel::Error) { rollup(All: "x") }
+        assert_raises(Sequel::Error) { rollup(Sum: nil) }
+        assert_raises(Sequel::Error) { rollup(Sequel.like(:Sum, "1%")) }
+    end
+
     def test_negate_formula_leaf
         inner = Sequel.expr(F: "abc")
         expr = Sequel::SQL::BooleanExpression.new(:NOT, inner)

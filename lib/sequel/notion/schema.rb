@@ -33,7 +33,24 @@ module Sequel
                               allow_null: false }]
             ].freeze
 
+            # Rollup functions by the kind of value they give; any other
+            # (date_range, a new one) is unknown and not filterable
+            ROLLUP_KINDS = {
+                "array" => %w[show_original show_unique],
+                "date" => %w[earliest_date latest_date],
+                "number" => %w[count count_values empty not_empty unique
+                               percent_empty percent_not_empty sum average
+                               median min max range checked unchecked
+                               percent_checked percent_unchecked
+                               count_per_group percent_per_group]
+            }.freeze
+
             module_function
+
+            def rollup_kind(prop)
+                function = prop.dig("rollup", "function")
+                ROLLUP_KINDS.find { |_, fns| fns.include?(function) }&.first
+            end
 
             # Data source properties => Sequel schema rows
             def notion_to_sequel(properties)

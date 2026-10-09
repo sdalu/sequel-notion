@@ -44,7 +44,8 @@ module Sequel
                 "relation" => "relation",
                 "files" => "files",
                 "formula" => "formula",
-                "unique_id" => "unique_id"
+                "unique_id" => "unique_id",
+                "rollup" => "rollup"
             }.freeze
 
             RICH_TEXT_OPS = %w[equals does_not_equal contains does_not_contain

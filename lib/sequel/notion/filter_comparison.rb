@@ -5,8 +5,9 @@ require "sequel/notion/filter_tables"
 
 module Sequel
     module Notion
-        # Standard, formula (rule F) and date-inequality (rule D) comparison
-        # compilation, mixed into FilterCompiler. All private.
+        # Standard and date-inequality (rule D) comparison compilation,
+        # mixed into FilterCompiler; formulas and rollups are FilterNested's.
+        # All private.
         module FilterComparison
             private
 
@@ -73,8 +74,8 @@ module Sequel
             end
 
             def compile_typed_comparison(name, op, value, key)
-                if key == "formula"
-                    return compile_formula_comparison(name, op, value)
+                if FilterNested::NESTED_KEYS.include?(key)
+                    return compile_nested_key(name, op, value, key)
                 end
                 if key == "date" && op == :"!="
                     return date_not_equal_filter(name, value)
@@ -100,33 +101,6 @@ module Sequel
                     )
                 end
                 contains_type?(key) ? equal_to_contains(notion_op) : notion_op
-            end
-
-            # ----------------------------------------------------------
-            # Formula comparisons (rule F)
-            # ----------------------------------------------------------
-
-            def formula_inner_key(value, name)
-                case value
-                when String then "string"
-                when Numeric then "number"
-                when true, false then "checkbox"
-                when Date, Time, DateTime then "date"
-                else
-                    raise Sequel::Error,
-                          "Unsupported formula value type for property " \
-                          "'#{name}': #{value.class}"
-                end
-            end
-
-            def compile_formula_comparison(name, op, value)
-                inner_key = formula_inner_key(value, name)
-                notion_op = translated_operator(op, inner_key)
-                ensure_supported!(name, inner_key, notion_op)
-
-                coerced = coerce_value(value, inner_key)
-                { "property" => name,
-                  "formula" => { inner_key => { notion_op => coerced } } }
             end
 
             # ----------------------------------------------------------

@@ -6,6 +6,7 @@ require "sequel/notion/filter_predicates"
 require "sequel/notion/filter_like_tokenizer"
 require "sequel/notion/filter_like"
 require "sequel/notion/filter_comparison"
+require "sequel/notion/filter_nested"
 require "sequel/notion/filter_negation"
 require "sequel/notion/filter_nulls"
 require "sequel/notion/filter_shape"
@@ -18,6 +19,7 @@ module Sequel
             include FilterLikeTokenizer
             include FilterLike
             include FilterComparison
+            include FilterNested
             include FilterNegation
             include FilterNulls
             include FilterShape
@@ -41,9 +43,17 @@ module Sequel
                       "#{expr.inspect}"
             end
 
-            def initialize(schema)
-                # schema = { "Status" => "status", "Name" => "title", ... }
+            # The compiler for one data source of a Database
+            def self.for(db, ds_id)
+                new(db.property_type_map(ds_id), db.rollup_kinds(ds_id))
+            end
+
+            # schema: { "Status" => "status", "Name" => "title", ... };
+            # rollups: rollup name => the kind of value its function gives
+            # ("number", "date", or "array" for every value)
+            def initialize(schema, rollups = {})
                 @prop_types = schema
+                @rollups    = rollups
             end
 
             def compile(expr) = notion_shape(sql_nulls(compile_node(expr)))
