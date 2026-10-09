@@ -55,9 +55,14 @@ module Sequel
                 )
             end
 
+            # A formula takes its boolean through the nested checkbox key
             def compile_is_boolean(name, negated, value)
                 type = lookup_type!(name)
                 key  = filter_key_for!(name, type)
+                if key == "formula"
+                    op = negated ? :"!=" : :"="
+                    return compile_formula_comparison(name, op, value)
+                end
 
                 op = negated ? "does_not_equal" : "equals"
                 op = equal_to_contains(op) if contains_type?(key)

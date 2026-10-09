@@ -85,6 +85,11 @@ class TestTypeMap < Minitest::Test
         assert_raises(Sequel::Error) { TM.build_property("not-a-number", "number") }
     end
 
+    # Float parses "1e400" to Infinity rather than raising
+    def test_number_string_overflow_raises
+        assert_raises(Sequel::Error) { TM.build_property("1e400", "number") }
+    end
+
     def test_number_refuses_nan_and_infinity_naming_the_property
         [Float::NAN, Float::INFINITY, -Float::INFINITY].each do |value|
             error = assert_raises(Sequel::Error) do

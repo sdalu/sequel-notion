@@ -428,6 +428,20 @@ class TestFilterCompiler < Minitest::Test
         )
     end
 
+    # Sequel writes `F => true` as IS TRUE, never as =
+    def test_formula_checkbox_through_is
+        assert_equal(
+            { "property" => "F",
+              "formula" => { "checkbox" => { "equals" => true } } },
+            compile(@db[:t].where(F: true).opts[:where])
+        )
+        assert_equal(
+            { "property" => "F",
+              "formula" => { "checkbox" => { "does_not_equal" => true } } },
+            compile(@db[:t].exclude(F: true).opts[:where])
+        )
+    end
+
     def test_formula_nil_raises
         expr = @db[:t].where(F: nil).opts[:where]
         assert_raises(Sequel::Error) { compile(expr) }

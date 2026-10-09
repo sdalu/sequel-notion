@@ -48,8 +48,9 @@ module Sequel
                 raise Sequel::Error, "invalid number: #{value.inspect}"
             end
 
+            # Float overflows "1e400" to Infinity instead of raising
             def parse_number(value)
-                Float(value)
+                finite_number(Float(value))
             rescue ArgumentError
                 raise Sequel::Error, "invalid number: #{value.inspect}"
             end

@@ -40,6 +40,10 @@
   does not parse raise `Sequel::Error` instead of a JSON or URI error; a
   write names the property. A file URL with no path is named by the URL rather
   than `"/"` or `""`.
+- A numeric string that overflows to Infinity (`"1e400"`) raises
+  `Sequel::Error` too, instead of a JSON error.
+- `where(F: true)` and `exclude(F: false)` on a checkbox formula filter
+  through the formula's `checkbox` key instead of raising.
 
 ## 0.1.0
 
