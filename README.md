@@ -102,7 +102,8 @@ back as its ISO 8601 start, or as a `Range` of the two strings when it has
 an end, which a write takes back as is; a unique ID as Notion shows it,
 `"TK-62"`; title and rich text as plain text; select and status as the
 option name; multi-select, people and relation as an `Array` of names or
-ids; files as `Sequel::Notion::File`s.
+ids; files as `Sequel::Notion::File`s; a rollup as its value, a number,
+a date, or an `Array` of the rolled-up values read the same way.
 
 | Sequel                                  | Notion filter                              |
 |-----------------------------------------|--------------------------------------------|
@@ -254,7 +255,8 @@ in Notion.
   wildcard or a `%` in the middle raises. Notion's own case rules apply to
   both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
   Notion matches whole values only, so a pattern with any `%` raises.
-- Rollups read back as Notion's raw hashes.
+- Rollups cannot be filtered (each raises), and a formula cannot be
+  filtered by `nil`: its result type is not known before a page is read.
 - A page lists at most 25 relations or people; a row's relation flagged
   `has_more`, or 25 people (Notion flags none), is completed from the
   page property endpoint, page by page, for the columns a
@@ -272,7 +274,8 @@ in Notion.
   following the cursor with a `page_size` below 100; negated filters
   excluding empty values, and filters merged or distributed to two
   levels; a relation of 26 pages read in full; a date range read back
-  as a `Range` and written back; unique ID filters and sorts; formula
+  as a `Range` and written back; unique ID filters and sorts; rollups of
+  a number, dates and titles read as values; formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 

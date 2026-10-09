@@ -25,7 +25,8 @@ module Sequel
                 "relation" => :extract_relation,
                 "formula" => :extract_formula,
                 "files" => :extract_files,
-                "unique_id" => :extract_unique_id
+                "unique_id" => :extract_unique_id,
+                "rollup" => :extract_rollup
             }.freeze
 
             def extract_rich_text(prop)
@@ -47,6 +48,17 @@ module Sequel
                 return date["start"] unless date["end"]
 
                 date["start"]..date["end"]
+            end
+
+            # Its value: a number or date, or an Array of the rolled-up
+            # values, each read as its own type
+            def extract_rollup(prop)
+                inner = prop["rollup"]
+                return if inner.nil?
+                return inner["array"].map { extract_value(it) } if
+                    inner["type"] == "array"
+
+                extract_value(inner)
             end
 
             # As Notion displays it: "TK-62", or "62" with no prefix

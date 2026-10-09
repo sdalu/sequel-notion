@@ -48,6 +48,23 @@ class TestPageToRow < Minitest::Test
         assert_equal "x", read("formula", { "type" => "string", "string" => "x" })
     end
 
+    # A rollup reads as its value: a number, or an Array of the
+    # rolled-up values, each read as its own type
+    def test_rollup_is_its_value
+        assert_equal 7, read("rollup", { "type" => "number", "number" => 7,
+                                         "function" => "sum" })
+        dates = [{ "type" => "date",
+                   "date" => { "start" => "2026-01-01", "end" => "2026-01-03" } },
+                 { "type" => "date",
+                   "date" => { "start" => "2026-02-01", "end" => nil } }]
+        assert_equal ["2026-01-01".."2026-01-03", "2026-02-01"],
+                     read("rollup", { "type" => "array", "array" => dates })
+        titles = [{ "type" => "title", "title" => [{ "plain_text" => "x" }] }]
+        assert_equal ["x"], read("rollup", { "type" => "array",
+                                             "array" => titles })
+        assert_nil read("rollup", nil)
+    end
+
     # As Notion displays it
     def test_unique_id_is_prefix_and_number
         assert_equal "TK-62", read("unique_id", { "prefix" => "TK",

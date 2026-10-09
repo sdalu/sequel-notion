@@ -109,6 +109,8 @@
 - A unique ID reads back as Notion shows it (`"TK-62"`) instead of a
   raw hash, and filters and sorts: `where(ID: "TK-62")`, `ID > 3`,
   `order(:ID)` (checked live).
+- A rollup reads back as its value (a number, a date, or an `Array` of
+  the rolled-up values) instead of a raw hash (checked live).
 - Formula negations need no guard: Notion already excludes an empty
   formula result (checked live).
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
