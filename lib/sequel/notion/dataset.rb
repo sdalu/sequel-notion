@@ -40,12 +40,12 @@ module Sequel
             def supports_placeholder_literalizer? = false
 
             # Rows, auto-paginated, honouring LIMIT, OFFSET and SELECT
-            def fetch_rows(sql, &)
+            def fetch_rows(sql)
                 if @opts[:sql] || sql != select_sql
                     raise Error, "Notion datasets take no SQL"
                 end
 
-                budgeted { computed? ? computed_rows(&) : page_rows(&) }
+                budgeted { each_row { yield it } }
             end
 
             # Streams through Notion's cursor, as cursor adapters do: no

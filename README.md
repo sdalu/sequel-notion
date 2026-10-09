@@ -155,7 +155,9 @@ into it, a level too many is distributed (`(a & b) | c` becomes
 `order` maps to Notion sorts. Notion puts empty values last in both
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
 Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
-not properties Notion can sort by.
+not properties Notion can sort by. A checkbox sorts `false` first (checked
+live), and so do rows computed in Ruby. Pages looked up by id are sorted
+in Ruby, as a query's would be.
 
 ### Pages by id, and selection
 
@@ -216,7 +218,8 @@ query ──▸ needs Ruby? ── no ──▸ Notion: where → filter, order 
 with a 200, both tables of a join and both sides of a union included; a
 rate-limited attempt the adapter retries, or a request that fails (a
 page gone), counts nothing. The query raises `Sequel::Error` before the
-request past it.
+request past it. A query run on a row inside `each` is a query of its
+own, with its own budget.
 
 - **Aggregates.** `sum`, `avg`, `min`, `max` and `count(:col)` skip
   `nil`s and give `nil` over no value.
@@ -432,6 +435,9 @@ believes Notion accepts. These were also checked against
   sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
   string and number formulas and on both rollups.
 - **Dates:** a time written to a date property kept to the minute.
+- **Checkboxes:** sorted `false` first, `true` first descending.
+- **Files:** a Notion-hosted file read from a page and written back
+  unchanged, signed URL included, kept by Notion.
 - **Pages:** lookups by id with or without dashes; creation with the
   `data_source_id` parent; writing, reading back and clearing every
   writable type; trashing and restoring; a relation of 26 pages read in

@@ -14,10 +14,13 @@ module Sequel
 
             private
 
+            # A subquery that combines nothing (from_self) is no compound,
+            # and gets source_table's refusal
             def compound?
                 from = @opts[:from]
                 from&.size == 1 && from.first.is_a?(SQL::AliasedExpression) &&
-                    from.first.expression.is_a?(Notion::Dataset)
+                    from.first.expression.is_a?(Notion::Dataset) &&
+                    !from.first.expression.opts[:compounds].nil?
             end
 
             def compound_inner = @opts[:from].first.expression

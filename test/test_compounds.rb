@@ -90,4 +90,11 @@ class TestCompounds < Minitest::Test
             a.union(@db[:t].client_side.select(:N, :Name)).all
         end
     end
+
+    # A subquery that combines nothing is no compound: a clear refusal
+    def test_from_self_raises_a_sequel_error
+        assert_raises(Sequel::Error) do
+            @db[:t].client_side.select(:N).from_self.all
+        end
+    end
 end

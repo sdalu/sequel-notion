@@ -222,4 +222,18 @@ class TestSequelApi < Minitest::Test
         end
         assert_raises(Sequel::DatabaseError) { @db.notion_get_page("bad") }
     end
+
+    # Pages fetched by id are sorted as a query's would be
+    def test_id_lookup_honours_order
+        ids = %w[p9 t1]
+        names = ->(ds) { ds.map(:Name) }
+        assert_equal %w[gone nine], names.(@db[:tasks].where(id: ids).order(:Name))
+        assert_equal %w[nine gone],
+                     names.(@db[:tasks].where(id: ids).order(Sequel.desc(:Name)))
+        assert_equal %w[gone],
+                     names.(@db[:tasks].where(id: ids).order(:Name).limit(1))
+        assert_raises(Sequel::Error) do
+            @db[:tasks].where(id: ids).order(:id).all
+        end
+    end
 end

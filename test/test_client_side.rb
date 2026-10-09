@@ -142,6 +142,24 @@ class TestClientSide < Minitest::Test
         assert_equal [here], rows.map { it[:id] }
     end
 
+    # A query the caller runs on a row is its own, outside the budget of
+    # the query that gave the row
+    def test_a_query_inside_each_has_its_own_budget
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.get("/v1/data_sources/#{DS_ID}") { json(properties: {}) }
+        stubs.post("/v1/data_sources/#{DS_ID}/query") do
+            json(results: [{ object: "page", id: "p1", in_trash: false,
+                             properties: {} }], has_more: false)
+        end
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_data_source(:t, DS_ID)
+        db.schema(:t)
+        inner = []
+        db[:t].client_side(max_requests: 1).each { inner << db[:t].all.size }
+        assert_equal [1], inner
+    end
+
     def test_max_requests_also_bounds_plain_reads
         @pages = 3
         assert_raises(Sequel::Error) { ds.client_side(max_requests: 2).all }

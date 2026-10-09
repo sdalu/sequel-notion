@@ -13,7 +13,8 @@ module SqlOracle
     PROJECTS = "22222222-0000-0000-0000-000000000002"
     TYPES    = {
         TASKS => { "Name" => "title", "N" => "number", "Proj" => "relation",
-                   "Due" => "date", "Kind" => "select" },
+                   "Due" => "date", "Kind" => "select",
+                   "Done" => "checkbox" },
         PROJECTS => { "Name" => "title", "Budget" => "number" }
     }.freeze
 
@@ -31,7 +32,8 @@ module SqlOracle
               N: [nil, 0, 1, 2, 2, 3, -1].sample(random: rnd),
               Proj: [nil, *projects.map { it[:id] }].sample(random: rnd),
               Due: DATES.sample(random: rnd),
-              Kind: [nil, "x", "y", "x", "z"].sample(random: rnd) }
+              Kind: [nil, "x", "y", "x", "z"].sample(random: rnd),
+              Done: [true, false].sample(random: rnd) }
         end
         { tasks:, projects: }
     end
@@ -50,6 +52,7 @@ module SqlOracle
             String :Proj
             Date :Due
             String :Kind
+            TrueClass :Done
         end
         db.create_table(:projects) do
             String :id
@@ -185,6 +188,7 @@ module SqlOracle
 
     def sort_compare(a, b, sort)
         x, y = [a, b].map { it[sort["property"].to_sym] }
+                     .map { [true, false].include?(it) ? (it ? 1 : 0) : it }
         return 0 if x.nil? && y.nil?
         return 1 if x.nil?
         return -1 if y.nil?

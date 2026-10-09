@@ -16,6 +16,7 @@ module Sequel
                 ds_id = data_source_id_for(table_name)
                 Sequel.synchronize do
                     @data_source_cache.delete(ds_id)
+                    @data_source_epoch[ds_id] += 1
                     @schemas.clear
                 end
                 remove_cached_schema(table_name)
@@ -34,15 +35,40 @@ module Sequel
 
             private
 
-            # Data source object properties, fetched once and cached
+            # Data source object properties, fetched once and cached. A
+            # fetch that a refresh_schema! overtook fetches again, so its
+            # older answer never replaces the newer one
             def data_source(ds_id)
-                cached = Sequel.synchronize { @data_source_cache[ds_id] }
-                return cached if cached
+                loop do
+                    epoch, cached = cached_properties(ds_id)
+                    return cached if cached
 
+                    props = fetch_properties(ds_id)
+                    return props if store_properties(ds_id, epoch, props)
+                end
+            end
+
+            def cached_properties(ds_id)
+                Sequel.synchronize do
+                    [@data_source_epoch[ds_id], @data_source_cache[ds_id]]
+                end
+            end
+
+            # Cache them, unless a refresh came in meanwhile
+            def store_properties(ds_id, epoch, props)
+                Sequel.synchronize do
+                    next false unless @data_source_epoch[ds_id] == epoch
+
+                    @data_source_cache[ds_id] = props
+                    true
+                end
+            end
+
+            def fetch_properties(ds_id)
                 props = request(:get,
                                 "data_sources/#{ds_id}")["properties"] || {}
                 TypeMap.check_property_names!(props.keys)
-                Sequel.synchronize { @data_source_cache[ds_id] = props }
+                props
             end
 
             def schema_parse_table(table_name, _opts)

@@ -62,4 +62,33 @@ class TestSchema < Minitest::Test
             assert_includes db.schema(name).map(&:first), :Due, name.to_s
         end
     end
+
+    # A fetch that started before a refresh cannot put the old
+    # properties back once a fresh fetch has seen the new ones
+    def test_a_fetch_racing_a_refresh_does_not_win
+        props = { "Name" => { "type" => "rich_text" } }
+        gate  = Queue.new
+        held  = true
+        stubs = Faraday::Adapter::Test::Stubs.new
+        stubs.get("/v1/data_sources/#{DS_ID}") do
+            snapshot = props
+            if held
+                held = false
+                gate.pop
+            end
+            json(properties: snapshot)
+        end
+        db = Sequel.connect(adapter: :notion, token: "t", test: false,
+                            faraday_adapter: [:test, stubs])
+        db.register_data_source(:t, DS_ID)
+        racing = Thread.new { db.property_type_map(DS_ID) }
+        Thread.pass until racing.status == "sleep"
+        props = { "Name" => { "type" => "number" } }
+        db.refresh_schema!(:t)
+        assert_equal({ "Name" => "number" }, db.property_type_map(DS_ID))
+        gate << true
+        racing.join
+        assert_equal({ "Name" => "number" }, db.property_type_map(DS_ID))
+        assert_equal :float, db.schema(:t).to_h[:Name][:type]
+    end
 end

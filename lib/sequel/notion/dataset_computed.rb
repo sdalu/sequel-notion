@@ -66,6 +66,22 @@ module Sequel
                 join_columns_out(join_sources) if joined?
             end
 
+            # The query's rows, computed in Ruby or read from Notion, each
+            # given to the caller outside the query's request budget
+            def each_row
+                give = ->(row) { db.outside_request_budget { yield row } }
+                computed? ? computed_rows(&give) : page_rows(&give)
+            end
+
+            # Pages fetched one by one come in the list's order: ORDER
+            # sorts them here, as Notion sorts a query's, after the sort
+            # compiler has refused what Notion would
+            def ordered_pages(pages)
+                SortCompiler.compile(@opts[:order])
+                rows = pages.map { TypeMap.page_to_row(it).merge(__page: it) }
+                sort_rows(rows).map { it[:__page] }
+            end
+
             # ORDER over rows already computed (groups, combined rows)
             def sort_rows(rows)
                 order = Array(@opts[:order]).map { grouped_order(it) }
@@ -89,7 +105,19 @@ module Sequel
                 return (left.nil? ? 0 : -1) if right.nil?
                 return 1 if left.nil?
 
-                desc ? right <=> left : left <=> right
+                order = sortable(left) <=> sortable(right) or
+                    raise Error, "cannot order #{left.inspect} and " \
+                                 "#{right.inspect}"
+                desc ? -order : order
+            end
+
+            # A checkbox sorts false first, as Notion sorts it
+            def sortable(value)
+                case value
+                when false then 0
+                when true then 1
+                else value
+                end
             end
         end
     end

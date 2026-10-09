@@ -22,6 +22,17 @@ module Sequel
                 end
             end
 
+            # Run the block with no budget: what the caller does with a
+            # row (another query, say) is no part of the query that
+            # gave it
+            def outside_request_budget
+                saved = Thread.current[budget_key]
+                Thread.current[budget_key] = nil
+                yield
+            ensure
+                Thread.current[budget_key] = saved
+            end
+
             private
 
             # The block's answer, refused once the budget is spent and

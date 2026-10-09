@@ -44,6 +44,7 @@ module Sequel
             def initialize(...)
                 super
                 @data_source_cache = {}
+                @data_source_epoch = Hash.new(0)
             end
 
             # ----------------------------------------------------------

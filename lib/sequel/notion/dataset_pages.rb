@@ -120,10 +120,10 @@ module Sequel
                                  "other conditions"
                 end
 
-                ids.each do |id|
-                    page = fetch_page(id)
-                    yield page if page && in_source?(page, ds_id)
-                end
+                pages = ids.lazy.filter_map { fetch_page(it) }
+                           .select { in_source?(it, ds_id) }
+                pages = ordered_pages(pages.to_a) if @opts[:order]
+                pages.each { yield it }
             end
 
             # Trashed pages included: the row says so, and this is the

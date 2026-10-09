@@ -150,6 +150,16 @@ class TestSqlOracle < Minitest::Test
                       .union(it[:tasks].where(Sequel[:Due] > D1)
                                        .select(:Kind, :Due)).all
         },
+        # Checkboxes: false before true, as Notion sorts them
+        done_group: lambda {
+            it[:tasks].group_and_count(:Done).order(:Done).all
+        },
+        done_union_order: lambda {
+            it[:tasks].where(Kind: "x").select(:Done, :Name)
+                      .union(it[:tasks].where(Sequel[:N] > 1)
+                                       .select(:Done, :Name))
+                      .order(Sequel.desc(:Done), :Name).all
+        },
         join_order_limit: lambda {
             joined(it, :join)
                 .order(:task, :project, Sequel.asc(:n, nulls: :last),
@@ -160,7 +170,8 @@ class TestSqlOracle < Minitest::Test
     }.freeze
 
     ORDERED = %i[distinct_limit group_order_limit union_order
-                 join_order_limit date_order].freeze
+                 join_order_limit date_order done_group
+                 done_union_order].freeze
 
     def self.ns(tables, above)
         tables[:tasks].where(Sequel[:N] > above).select(:N)

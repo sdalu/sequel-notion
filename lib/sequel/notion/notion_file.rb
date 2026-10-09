@@ -212,9 +212,9 @@ module Sequel
             end
 
             def to_notion_file
-                # Notion-hosted files are read-only via the API;
-                # you can reference them but not upload new ones this way.
-                # Return the existing structure for round-tripping.
+                # A Notion-hosted file is written back as read, signed URL
+                # and all, which Notion accepts and keeps the file for
+                # (checked live); a new one is uploaded with file_upload.
                 obj = {
                     "type" => "file",
                     "name" => @name || "",

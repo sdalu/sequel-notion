@@ -76,7 +76,10 @@ past it. The count is taken above faraday-retry, after the answer: a
 attempts a retry absorbs spend nothing, and neither does a request that
 fails (a page by id that is gone). Counting every HTTP attempt was
 rejected: a throttled query would then fail on Notion's load rather than
-on its own size.
+on its own size. The budget is a thread-local, so it is set aside while
+each row is handed to the caller: a query the caller runs on that row is
+its own, while the queries the adapter runs inside (a join's tables, a
+union's sides) still spend the one budget.
 
 `group` keeps one running value per aggregate per group
 (`GroupAccumulator`) rather than the group's rows, so memory grows with
@@ -113,8 +116,9 @@ What neither Notion nor Ruby computes raises instead of being dropped:
 locks (on every path, the computed ones included), raw SQL (`with_sql`),
 right, full and cross joins, a join `ON` other than one equality, a
 `where` condition testing two joined tables, `INTERSECT ALL` and
-`EXCEPT ALL`, and a `where`, `group`, `having`, `distinct` or join added
-to a combined query. A `select` added to one projects the combined
+`EXCEPT ALL`, a subquery in `FROM` that combines nothing (`from_self`),
+and a `where`, `group`, `having`, `distinct` or join added to a combined
+query. A `select` added to one projects the combined
 rows, since `select_map` and `get` add one. A query that silently
 returns the wrong rows is worse than one that refuses to run.
 
@@ -142,6 +146,9 @@ for formulas the nested key, depend on it. The type map comes from the
 data source object, which `Database` fetches once per data source and
 caches. The same fetch feeds `schema`, through Sequel's
 `schema_parse_table` hook, so Sequel's own schema cache works.
+`refresh_schema!` drops both, and bumps the data source's epoch: a fetch
+already in flight when it ran finds the epoch changed and fetches again,
+rather than putting the old properties back over a fresh read.
 
 The compiler accepts Sequel's own shapes rather than re-deriving SQL:
 `col => true` arrives as `IS TRUE`, `col => [...]` as `IN`, and a literal on

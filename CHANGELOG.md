@@ -173,6 +173,16 @@
 - A date filter value that is not a `Date`, `Time`, `DateTime` or ISO
   8601 string raises instead of being sent as its `to_s`
   (`where(Due: 123)` sent `"123"`).
+- `where(id: [...]).order(...)` sorts the pages it fetches, as a query
+  would, instead of returning them in the list's order.
+- Ordering rows computed in Ruby (groups, unions, joins) by a checkbox
+  sorts `false` first, as Notion does, instead of a `NoMethodError`;
+  values that cannot be compared raise `Sequel::Error`.
+- A query run inside another's `each` block has its own `max_requests`
+  budget instead of spending the outer query's.
+- `from_self` raises `Sequel::Error` instead of a `NoMethodError`.
+- A data source fetch that `refresh_schema!` overtook no longer puts
+  the old properties back in the cache: it fetches again.
 - A file named after its URL takes the path segment decoded (`a b.pdf`,
   not `a%20b.pdf`); a segment that does not decode is kept as it is.
 - A model keeps an Integer given to a number column (`rec.N = 5` is
