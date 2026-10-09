@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "sequel-notion/sort_compiler"
+require "sequel/notion/sort_compiler"
 
 class TestSortCompiler < Minitest::Test
     def setup

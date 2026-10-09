@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require "sequel-notion/errors"
-require "sequel-notion/filter_compiler"
-require "sequel-notion/sort_compiler"
+require "sequel/notion/errors"
+require "sequel/notion/filter_compiler"
+require "sequel/notion/sort_compiler"
 
 module Sequel
     module Notion

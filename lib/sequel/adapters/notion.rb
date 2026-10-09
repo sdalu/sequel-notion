@@ -6,14 +6,14 @@ require "faraday"
 require "faraday/retry"
 require "sequel"
 
-require "sequel-notion/dataset"
-require "sequel-notion/errors"
-require "sequel-notion/model_support"
-require "sequel-notion/page_api"
-require "sequel-notion/registry"
-require "sequel-notion/schema"
-require "sequel-notion/type_map"
-require "sequel-notion/version"
+require "sequel/notion/dataset"
+require "sequel/notion/errors"
+require "sequel/notion/model_support"
+require "sequel/notion/page_api"
+require "sequel/notion/registry"
+require "sequel/notion/schema"
+require "sequel/notion/type_map"
+require "sequel/notion/version"
 
 module Sequel
     module Notion

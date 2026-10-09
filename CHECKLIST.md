@@ -20,5 +20,5 @@ Run in order.
 
 ## Release
 
-- [ ] Does the number move? It lives in `lib/sequel-notion/version.rb`
+- [ ] Does the number move? It lives in `lib/sequel/notion/version.rb`
       only; the CHANGELOG heading must match it.

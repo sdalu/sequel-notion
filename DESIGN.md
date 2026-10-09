@@ -27,7 +27,7 @@ returns the wrong rows is worse than one that refuses to run.
 
 ## Where expressions are compiled
 
-`FilterCompiler` (`lib/sequel-notion/filter_compiler.rb` and its
+`FilterCompiler` (`lib/sequel/notion/filter_compiler.rb` and its
 `filter_*` helpers) walks Sequel's expression tree and emits Notion filter
 JSON. It needs each property's Notion type, because the filter key, and
 for formulas the nested key, depend on it. The type map comes from the

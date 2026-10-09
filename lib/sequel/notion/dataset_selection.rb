@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "sequel-notion/filter_compiler"
+require "sequel/notion/filter_compiler"
 
 module Sequel
     module Notion

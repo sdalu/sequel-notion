@@ -2,7 +2,7 @@
 
 require "test_helper"
 require "bigdecimal"
-require "sequel-notion/filter_compiler"
+require "sequel/notion/filter_compiler"
 require "date"
 
 class TestFilterCompiler < Minitest::Test

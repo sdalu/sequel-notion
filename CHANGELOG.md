@@ -17,6 +17,9 @@
 - Trashed pages are reachable by id and can be restored.
 - `table_exists?`, the pagination extension and `Sequel::Rollback` work.
 - Requires Ruby 3.4.
+- Files live under `lib/sequel/notion/`, as RubyGems' naming guide asks
+  of a dashed gem name, and `require "sequel/notion"` (or Bundler's
+  auto-require) loads the adapter.
 - Table names keep non-Latin letters (`"タスク"` → `:タスク`) instead of
   normalising them all to the same empty name, which made a name lookup
   pick another data source and broke `register_all_data_sources`. A

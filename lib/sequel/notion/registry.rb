@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "sequel-notion/discovery"
+require "sequel/notion/discovery"
 
 module Sequel
     module Notion

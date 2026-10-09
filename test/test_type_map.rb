@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "sequel-notion/type_map"
+require "sequel/notion/type_map"
 
 TM = Sequel::Notion::TypeMap
 

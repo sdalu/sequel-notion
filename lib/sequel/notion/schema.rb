@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "sequel-notion/type_map"
+require "sequel/notion/type_map"
 
 module Sequel
     module Notion

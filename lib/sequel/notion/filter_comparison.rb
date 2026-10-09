@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "date"
-require "sequel-notion/filter_tables"
+require "sequel/notion/filter_tables"
 
 module Sequel
     module Notion

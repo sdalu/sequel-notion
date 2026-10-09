@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-require "sequel-notion/filter_tables"
-require "sequel-notion/filter_helpers"
-require "sequel-notion/filter_predicates"
-require "sequel-notion/filter_like_tokenizer"
-require "sequel-notion/filter_like"
-require "sequel-notion/filter_comparison"
-require "sequel-notion/filter_negation"
+require "sequel/notion/filter_tables"
+require "sequel/notion/filter_helpers"
+require "sequel/notion/filter_predicates"
+require "sequel/notion/filter_like_tokenizer"
+require "sequel/notion/filter_like"
+require "sequel/notion/filter_comparison"
+require "sequel/notion/filter_negation"
 
 module Sequel
     module Notion
