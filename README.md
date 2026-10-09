@@ -114,6 +114,8 @@ source that has one raises; rename the property in Notion.
 
 `order` maps to Notion sorts. Notion puts empty values last in both
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
+Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
+not properties Notion can sort by.
 `offset` is applied client side, so the rows it
 skips are still fetched. `count` pages through the results. Requests are
 paginated automatically.

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "sequel/notion/filter_compiler"
+require "sequel/notion/type_map"
 
 module Sequel
     module Notion
@@ -32,13 +33,22 @@ module Sequel
                 end
 
                 direction = clause.descending ? "descending" : "ascending"
-                { "property" => FilterCompiler.property_name(clause.expression),
+                { "property" => sort_property(clause.expression),
                   "direction" => direction }
             end
 
             def compile_ascending(clause)
-                { "property" => FilterCompiler.property_name(clause),
+                { "property" => sort_property(clause),
                   "direction" => "ascending" }
+            end
+
+            # Notion sorts by a property or a timestamp, never by the
+            # page's own id or in_trash, and rejects them with a 400
+            def sort_property(expr)
+                name = FilterCompiler.property_name(expr)
+                return name unless TypeMap::PAGE_KEYS.include?(name)
+
+                raise Sequel::Error, "Notion cannot sort by #{name}"
             end
         end
     end

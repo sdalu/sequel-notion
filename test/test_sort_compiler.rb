@@ -80,4 +80,12 @@ class TestSortCompiler < Minitest::Test
         order = @db[:t].order(Sequel.asc(:N, nulls: :first)).opts[:order]
         assert_raises(Sequel::Error) { compile(order) }
     end
+
+    # The page's own columns are no properties Notion can sort by
+    def test_page_columns_raise
+        [:id, Sequel.desc(:id), :in_trash].each do |col|
+            order = @db[:t].order(col).opts[:order]
+            assert_raises(Sequel::Error) { compile(order) }
+        end
+    end
 end

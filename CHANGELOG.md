@@ -84,6 +84,8 @@
   Sending every column wrote back what a row reads (a date's start only,
   the first 25 relations or people, rich text as plain text), dropping
   a range's end, the other relations and the formatting.
+- `order(:id)` and `order(:in_trash)` raise `Sequel::Error` instead of
+  sending a sort Notion rejects with a 400.
 - A date `Hash` with no `:start` raises, as a beginless `Range` does,
   instead of sending a date Notion rejects (checked live).
 
