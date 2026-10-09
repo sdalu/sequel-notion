@@ -30,7 +30,7 @@ module Sequel
                 raise Error, "Missing data source id for #{name}" unless
                     data_source_id
 
-                registry_store(name.to_sym, data_source_id)
+                registry_store(name.to_sym, data_source_id.to_s)
                 self
             end
 

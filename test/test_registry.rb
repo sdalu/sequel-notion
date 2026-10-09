@@ -202,6 +202,15 @@ class TestRegistry < Minitest::Test
         assert_equal "s1", db.data_source_id_for(:tasks)
     end
 
+    # Ids are kept as Strings, however they were given
+    def test_an_id_given_as_a_symbol_is_kept_as_a_string
+        db = auto_registering(*CLASH)
+        db.register_data_source(:bills, :mine)
+        db.register_data_source(:bills, "mine")
+        db.tables
+        assert_equal "mine", db.data_source_id_for(:bills)
+    end
+
     def test_tables_omit_a_clashing_name
         assert_equal %i[bills], auto_registering(*CLASH).tables
     end

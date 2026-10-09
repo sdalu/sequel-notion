@@ -59,6 +59,13 @@
   always sorts empty values last.
 - Discovery, the search fallback and `register_all_data_sources` skip
   data sources in the trash, which Notion's search still lists.
+- `register_data_source` keeps the id as a String, so registering the
+  same id as a Symbol and as a String no longer raises, and discovery
+  never overwrites it.
+- A beginless date range raises `Sequel::Error` naming the property,
+  instead of Notion's 400 on a null start.
+- `update` with SQL (`Sequel.lit`) raises `Sequel::Error` instead of a
+  `NoMethodError`.
 
 ## 0.1.0
 

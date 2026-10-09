@@ -144,6 +144,13 @@ class TestDataset < Minitest::Test
         assert_equal ["a"], rows.map(:Name)
     end
 
+    # Sequel also takes SQL for update; Notion has none
+    def test_update_with_sql_raises_a_sequel_error
+        assert_raises(Sequel::Error) do
+            @db[:tasks].update(Sequel.lit("N = N + 1"))
+        end
+    end
+
     def test_update_collects_ids_before_patching
         three_pages
         patched = []

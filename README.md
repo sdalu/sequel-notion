@@ -153,7 +153,8 @@ data source:
 
 Notion's date ranges include their end, so an exclusive range
 `d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
-exclusive `Time` range raises.
+exclusive `Time` range raises. A range needs a start: `d1..` leaves the
+end open, and `..d2` raises.
 
 NaN and Infinity, which JSON cannot carry, raise `Sequel::Error` in a
 write or a filter, and so does an external file URL that does not parse

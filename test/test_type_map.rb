@@ -180,6 +180,17 @@ class TestTypeMap < Minitest::Test
         )
     end
 
+    # Notion needs a start; an endless range is an open end
+    def test_beginless_date_range_is_refused
+        error = assert_raises(Sequel::Error) do
+            TM.row_to_properties({ Due: ..Date.new(2026, 1, 5) },
+                                 { "Due" => "date" })
+        end
+        assert_includes error.message, '"Due"'
+        assert_equal({ "date" => { "start" => "2026-01-01", "end" => nil } },
+                     TM.build_property(Date.new(2026, 1, 1).., "date"))
+    end
+
     def test_exclusive_time_range_is_refused
         range = Time.utc(2026, 1, 1)...Time.utc(2026, 1, 5)
         assert_raises(Sequel::Error) { TM.build_property(range, "date") }

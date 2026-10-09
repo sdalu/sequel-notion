@@ -71,6 +71,8 @@ module Sequel
             # ----------------------------------------------------------
 
             def update(values = OPTS)
+                raise Error, "update takes a Hash" unless values.is_a?(Hash)
+
                 values = values.transform_keys(&:to_sym)
                 in_trash = values.delete(:in_trash)
                 values.delete(:id)

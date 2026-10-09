@@ -2,6 +2,7 @@
 
 require_relative "notion_file"
 require_relative "type_map_builders"
+require_relative "type_map_dates"
 require_relative "type_map_extractors"
 
 module Sequel
