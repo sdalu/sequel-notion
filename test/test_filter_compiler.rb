@@ -521,14 +521,22 @@ class TestFilterCompiler < Minitest::Test
         )
     end
 
-    def test_formula_nil_raises
+    # Notion checks a formula's emptiness under any value key, whatever
+    # its result type (checked live on string and number formulas)
+    def test_formula_nil_is_empty
         expr = @db[:t].where(F: nil).opts[:where]
-        assert_raises(Sequel::Error) { compile(expr) }
+        assert_equal(leaf("F", "formula", "string" => { "is_empty" => true }),
+                     compile(expr))
+        expr = @db[:t].exclude(F: nil).opts[:where]
+        assert_equal(leaf("F", "formula",
+                          "string" => { "is_not_empty" => true }),
+                     compile(expr))
     end
 
-    def test_formula_is_nil_raises
+    def test_formula_is_nil_is_empty
         expr = Sequel::SQL::BooleanExpression.new(:IS, :F, nil)
-        assert_raises(Sequel::Error) { compile(expr) }
+        assert_equal(leaf("F", "formula", "string" => { "is_empty" => true }),
+                     compile(expr))
     end
 
     def test_formula_unsupported_value_class_raises
@@ -809,9 +817,23 @@ class TestFilterCompiler < Minitest::Test
         )
     end
 
+    def test_rollup_nil_is_empty_under_its_kind
+        assert_equal(leaf("Last", "rollup", "date" => { "is_empty" => true }),
+                     rollup(Last: nil))
+        assert_equal(leaf("Sum", "rollup",
+                          "number" => { "is_not_empty" => true }),
+                     rollup(Sequel.~(Sum: nil)))
+        assert_equal(
+            { "or" => [leaf("Sum", "rollup", "number" => { "equals" => 1 }),
+                       leaf("Sum", "rollup",
+                            "number" => { "is_empty" => true })] },
+            rollup(Sum: [1, nil])
+        )
+    end
+
     def test_rollup_of_every_value_and_nil_raise
         assert_raises(Sequel::Error) { rollup(All: "x") }
-        assert_raises(Sequel::Error) { rollup(Sum: nil) }
+        assert_raises(Sequel::Error) { rollup(All: nil) }
         assert_raises(Sequel::Error) { rollup(Sequel.like(:Sum, "1%")) }
     end
 

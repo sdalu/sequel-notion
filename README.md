@@ -108,7 +108,7 @@ a date, or an `Array` of the rolled-up values read the same way.
 | Sequel                                  | Notion filter                              |
 |-----------------------------------------|--------------------------------------------|
 | `where(P: v)`, `exclude(P: v)`          | `equals`, `does_not_equal`                 |
-| `where(P: nil)`                         | `is_empty` (`is_not_empty` when excluded)  |
+| `where(P: nil)`                         | `is_empty` (`is_not_empty` when excluded), also for a formula or a rollup |
 | `where(Done: true)`, `where(:Done)`     | checkbox `equals`, also for a checkbox formula |
 | `where(P: [a, b])`                      | `or` of `equals`; a `nil` in the list is `is_empty` |
 | `<`, `<=`, `>`, `>=`                    | number comparisons; `before`/`after`/`on_or_…` on dates |
@@ -257,9 +257,7 @@ in Notion.
   both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
   Notion matches whole values only, so a pattern with any `%` raises.
 - A rollup that keeps every value (`show_original`, `show_unique`) cannot
-  be filtered: Notion's `any`/`every`/`none` have no SQL reading. Nor can
-  a formula or a rollup be filtered by `nil`, its result type being
-  unknown before a page is read.
+  be filtered: Notion's `any`/`every`/`none` have no SQL reading.
 - A page lists at most 25 relations or people; a row's relation flagged
   `has_more`, or 25 people (Notion flags none), is completed from the
   page property endpoint, page by page, for the columns a
@@ -279,7 +277,8 @@ in Notion.
   levels; a relation of 26 pages read in full; a date range read back
   as a `Range` and written back; unique ID filters and sorts; rollups of
   a number, dates and titles read as values; filters and sorts on a sum
-  rollup; formula
+  rollup; `nil` filters on string and number formulas and a sum rollup;
+  formula
   negations excluding empty results; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 

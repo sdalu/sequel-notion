@@ -25,8 +25,20 @@ module Sequel
             # inequalities, each nested
             def nested_in(sequel_op, name, values, key)
                 op = sequel_op == :IN ? :"=" : :"!="
-                leaves = values.map { compile_nested_key(name, op, it, key) }
+                leaves = values.map do |v|
+                    next null_check_filter(name, empty: op == :"=") if v.nil?
+
+                    compile_nested_key(name, op, v, key)
+                end
                 { (sequel_op == :IN ? "or" : "and") => leaves }
+            end
+
+            # Notion checks a formula's emptiness under any value key,
+            # whatever its result type (checked live); a rollup's under
+            # the kind it gives
+            def nested_null_filter(name, key, op)
+                inner = key == "formula" ? "string" : rollup_kind!(name)
+                { "property" => name, key => { inner => { op => true } } }
             end
 
             # A formula's kind follows the value's class

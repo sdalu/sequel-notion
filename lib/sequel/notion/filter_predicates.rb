@@ -19,13 +19,10 @@ module Sequel
                 type = lookup_type!(name)
                 key = filter_key_for!(name, type)
 
-                if %w[formula rollup].include?(key)
-                    raise Sequel::Error,
-                          "Cannot check emptiness of #{key} property " \
-                          "'#{name}' (result type unknown)"
-                end
-
                 op = empty ? "is_empty" : "is_not_empty"
+                return nested_null_filter(name, key, op) if
+                    FilterNested::NESTED_KEYS.include?(key)
+
                 ensure_supported!(name, key, op)
 
                 { "property" => name, key => { op => true } }
