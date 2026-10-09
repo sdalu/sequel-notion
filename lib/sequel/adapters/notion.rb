@@ -107,6 +107,12 @@ module Sequel
                 raise database_error(e)
             end
 
+            # Where Sequel sends SQL to run: run, <<, truncate, the
+            # with_sql_* writes and every schema change
+            def execute(sql, _opts = OPTS)
+                raise Error, "Notion takes no SQL: #{sql}"
+            end
+
             private
 
             def refuse_rollback_always!(opts)

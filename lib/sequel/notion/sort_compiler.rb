@@ -14,6 +14,7 @@ module Sequel
 
             def compile_one(clause)
                 case clause
+                when Sequel::LiteralString then raise literal_error(clause)
                 when Sequel::SQL::OrderedExpression then compile_ordered(clause)
                 when Symbol, String, Sequel::SQL::Identifier,
                      Sequel::SQL::QualifiedIdentifier
@@ -22,6 +23,11 @@ module Sequel
                     raise Sequel::Error,
                           "Unsupported order expression: #{clause.class}"
                 end
+            end
+
+            # Sequel.lit is a String, but SQL, not a property name
+            def literal_error(clause)
+                Sequel::Error.new("Notion takes no SQL in an order: #{clause}")
             end
 
             # Notion sorts empty values last in either direction, so only
@@ -45,6 +51,8 @@ module Sequel
             # Notion sorts by a property or a timestamp, never by the
             # page's own id or in_trash, and rejects them with a 400
             def sort_property(expr)
+                raise literal_error(expr) if expr.is_a?(Sequel::LiteralString)
+
                 name = FilterCompiler.property_name(expr)
                 return name unless TypeMap::PAGE_KEYS.include?(name)
 

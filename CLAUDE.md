@@ -9,7 +9,9 @@
   Faraday's test adapter (`faraday_adapter: [:test, stubs]`). A green run
   proves the payloads match what the code believes about Notion, not what
   Notion accepts. README's "Checked against the live API" section lists
-  what was checked live; anything else rests on stubs only.
+  what was checked live; anything else rests on stubs only. The Ruby
+  side is checked against SQLite instead (`test/sql_oracle.rb`): a query
+  shape added there gets a case in `test_sql_oracle.rb`.
 - Trap: `faraday-retry` is a separate gem and is not installed
   system-wide here, so plain `rake test` fails with a LoadError. Use
   `bundle exec`.

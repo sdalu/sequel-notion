@@ -89,6 +89,20 @@ class TestSequelApi < Minitest::Test
         assert_raises(Sequel::Error) { @db[:tasks].with_sql("SELECT 1").all }
     end
 
+    # Every path that would run SQL raises Sequel::Error, not a
+    # NoMethodError on a missing execute
+    def test_sql_execution_is_refused
+        [-> { @db.run("SELECT 1") }, -> { @db << "SELECT 1" },
+         -> { @db[:tasks].truncate },
+         -> { @db[:tasks].with_sql_delete("DELETE FROM t") },
+         -> { @db[:tasks].with_sql_update("UPDATE t SET a = 1") },
+         -> { @db[:tasks].with_sql_insert("INSERT INTO t VALUES (1)") },
+         -> { @db.create_table(:x) { String :a } },
+         -> { @db.drop_table(:tasks) }].each do |call|
+            assert_raises(Sequel::Error) { call.call }
+        end
+    end
+
     def test_model_save_skips_computed_columns
         klass = model
         klass.plugin :skip_saving_columns

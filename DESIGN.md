@@ -9,7 +9,11 @@ unchanged. Below that layer nothing is SQL: the dataset reads its own
 them into Notion requests. `select_sql` returns a placeholder because
 Sequel renders it before every fetch, and a real rendering would fail on
 values SQL cannot express. `fetch_rows` refuses any SQL other than that
-placeholder, so `with_sql` raises: there is no SQL to run.
+placeholder, so `with_sql` raises: there is no SQL to run. Every other
+path that would run SQL (`run`, `<<`, `truncate`, the `with_sql_*`
+writes, schema changes) ends in `Database#execute`, which raises
+`Sequel::Error`; `order(Sequel.lit(...))` raises too, though a literal
+is a `String`, which would otherwise read as a property name.
 
 Two Sequel optimisations assume SQL, and both are turned off. Cached
 loaders (`first(...)` called repeatedly, `Model[...]`) replace WHERE with
@@ -107,6 +111,20 @@ right, full and cross joins, a join `ON` other than one equality, a
 to a combined query. A `select` added to one projects the combined
 rows, since `select_map` and `get` add one. A query that silently
 returns the wrong rows is worse than one that refuses to run.
+
+## The suite checks the Ruby side against SQLite
+
+The suite stubs Notion, so it cannot say whether what the adapter
+computes in Ruby gives SQL's answer; a hand-written expected value only
+says what its author believed. `test/sql_oracle.rb` puts the same rows
+in a stubbed Notion, which filters and sorts as Notion does (an empty
+value matching `does_not_equal`, sorting last), and in an in-memory
+SQLite database. `test_sql_oracle.rb` runs aggregates, groups, `having`,
+`distinct`, compounds and joins on both, and `test_sequel_api_oracle.rb`
+Sequel's own dataset methods, over 25 random data sets each; both must
+agree. Restoring the left-join code this round fixed makes three of the
+oracle's queries fail. Where Notion and SQL differ by design (empty
+values sort last), the queries ask for that order on both sides.
 
 ## Where expressions are compiled
 

@@ -88,4 +88,12 @@ class TestSortCompiler < Minitest::Test
             assert_raises(Sequel::Error) { compile(order) }
         end
     end
+
+    # Literal SQL is no property name, though Sequel.lit is a String
+    def test_literal_sql_raises
+        [Sequel.lit("1"), Sequel.desc(Sequel.lit("x"))].each do |col|
+            order = @db[:t].order(col).opts[:order]
+            assert_raises(Sequel::Error) { compile(order) }
+        end
+    end
 end

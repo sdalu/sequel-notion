@@ -384,7 +384,8 @@ in Notion.
 
 ## Known shortfalls
 
-- No raw SQL (`with_sql`): there is no SQL to run it. No locks
+- No raw SQL (`with_sql`, `run`, `truncate`, schema changes): there is
+  no SQL to run it, and each raises `Sequel::Error`. No locks
   (`for_update`): Notion has none.
 - Joins are inner or left, on one equality; right, full and cross joins,
   and a `where` condition testing two tables, raise.
@@ -415,7 +416,8 @@ believes Notion accepts. These were also checked against
 - **Filters:** title, url and email through the `rich_text` key; created
   and edited times through the `date` key; negations excluding empty
   values, formula negations excluding empty results, a rollup negation
-  guarded against an empty average, and filters merged
+  guarded against an empty average, `NOT IN` on dates and created
+  times, and filters merged
   or distributed to two levels; unique ID filters and sorts; filters and
   sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
   string and number formulas and on both rollups.
@@ -431,7 +433,8 @@ believes Notion accepts. These were also checked against
   100.
 - **Computed in Ruby:** refused without `client_side` and no request
   sent; aggregates, `distinct`, `DISTINCT ON`, `group`, `having`,
-  `union`, `intersect` and `except` over rows with and without values;
+  `union`, `intersect` and `except` over rows with and without values,
+  and a `select` on their result;
   inner and left joins through a relation, with a `where` per side, a
   sum and a group over them; a left join's `where` on its joined table,
   equal to a value and empty; `max_requests` stopping a join.
