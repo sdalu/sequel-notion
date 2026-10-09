@@ -1,8 +1,7 @@
 # sequel-notion — session entry
 
-- Gate: `bundle exec rake test` (after `bundle install`, which installs
-  into `vendors/`). Run it before and after a change. Close a round with
-  CHECKLIST.md.
+- Gate: `bundle exec rake test` (after `bundle install`). Run it before
+  and after a change. Close a round with CHECKLIST.md.
 - README.md: what the adapter does. DESIGN.md: why it is shaped so.
   HISTORY.md: what was tried and dropped.
 - Style: the house RuboCop config, `~/.claude/skills/ruby/scripts/rubocop.yml`.
