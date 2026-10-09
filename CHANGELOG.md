@@ -26,7 +26,12 @@
   range raises.
 - A property named `id` or `in_trash` raises instead of overwriting the
   page's own column.
-- `where(id: [a, a])` gives one row.
+- `where(id: [a, a])` gives one row, and an id matches itself written
+  with or without dashes.
+- NaN and Infinity, in a write or a filter, and an external file URL that
+  does not parse raise `Sequel::Error` instead of a JSON or URI error; a
+  write names the property. A file URL with no path is named by the URL rather
+  than `"/"` or `""`.
 
 ## 0.1.0
 

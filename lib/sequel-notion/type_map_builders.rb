@@ -29,11 +29,19 @@ module Sequel
             def build_number(value)
                 case value
                 when nil then nil
-                when Integer, Float then value
-                when Numeric then value.to_f
+                when Integer then value
+                when Float then finite_number(value)
+                when Numeric then finite_number(value.to_f)
                 when String then parse_number(value)
                 else raise Sequel::Error, "invalid number: #{value.inspect}"
                 end
+            end
+
+            # JSON has no NaN or Infinity
+            def finite_number(value)
+                return value if value.finite?
+
+                raise Sequel::Error, "invalid number: #{value.inspect}"
             end
 
             def parse_number(value)
@@ -109,18 +117,11 @@ module Sequel
                 end
             end
 
-            def build_relation(value)
-                return [] if value.nil?
-
-                ids = value.is_a?(Array) ? value : [value]
-                ids.map { |id| { "id" => id } }
-            end
+            # One id or an Array of them; nil is none
+            def build_relation(value) = Array(value).map { { "id" => it } }
 
             def build_people(value)
-                return [] if value.nil?
-
-                ids = value.is_a?(Array) ? value : [value]
-                ids.map { |id| { "object" => "user", "id" => id } }
+                Array(value).map { { "object" => "user", "id" => it } }
             end
 
             def build_files(value)

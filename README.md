@@ -109,8 +109,8 @@ skips are still fetched. `count` pages through the results. Requests are
 paginated automatically.
 
 `where(id: "…")` or `where(id: [...])` fetches those pages directly,
-including pages in the trash (`:in_trash` says so). A repeated id gives
-one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
+including pages in the trash (`:in_trash` says so). An id may be written
+with or without dashes, and a repeated id gives one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
 An `id` condition cannot be combined with other conditions.
 
 `select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
@@ -132,7 +132,7 @@ data source:
 | Notion type                     | Ruby value                                   | `nil` clears to |
 |---------------------------------|----------------------------------------------|-----------------|
 | title, rich_text                | anything (`to_s`), split into 2000-character runs | `[]` |
-| number                          | `Numeric` (sent as Integer or Float), or a numeric `String` | `null` |
+| number                          | a finite `Numeric` (sent as Integer or Float), or a numeric `String` | `null` |
 | select, status                  | the option name                              | `null`          |
 | multi_select                    | an `Array` of names, or one name             | `[]`            |
 | date                            | `Date`, `Time`, a `Range` of them, an ISO 8601 `String`, or `{start:, end:}` | `null` |
@@ -140,11 +140,15 @@ data source:
 | url, email, phone_number        | `to_s`                                       | `null`          |
 | relation                        | page id(s)                                   | `[]`            |
 | people                          | user id(s)                                   | `[]`            |
-| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them | `[]`    |
+| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them; unnamed, a file is named after the URL's last path segment | `[]`    |
 
 Notion's date ranges include their end, so an exclusive range
 `d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
 exclusive `Time` range raises.
+
+NaN and Infinity, which JSON cannot carry, raise `Sequel::Error` in a
+write or a filter, and so does an external file URL that does not parse
+(a space in it, for instance).
 
 Writing a computed property (formula, rollup, created/edited time or by,
 unique_id, button, verification) or an unknown property raises

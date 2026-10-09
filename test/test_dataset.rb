@@ -135,6 +135,15 @@ class TestDataset < Minitest::Test
         assert_raises(Sequel::Error) { @db[:tasks].all }
     end
 
+    def test_id_conditions_intersect_across_dash_spellings
+        id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+        @stubs.get("/v1/pages/#{id.delete("-")}") do
+            json(**page(id, "a"))
+        end
+        rows = @db[:tasks].where(id: id).where(id: id.delete("-"))
+        assert_equal ["a"], rows.map(:Name)
+    end
+
     def test_update_collects_ids_before_patching
         three_pages
         patched = []

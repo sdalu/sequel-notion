@@ -74,6 +74,15 @@ class TestTypeMap < Minitest::Test
         assert_raises(Sequel::Error) { TM.build_property("not-a-number", "number") }
     end
 
+    def test_number_refuses_nan_and_infinity_naming_the_property
+        [Float::NAN, Float::INFINITY, -Float::INFINITY].each do |value|
+            error = assert_raises(Sequel::Error) do
+                TM.row_to_properties({ N: value }, { "N" => "number" })
+            end
+            assert_includes error.message, '"N"'
+        end
+    end
+
     # ----------------------------------------------------------
     # select / status
     # ----------------------------------------------------------
@@ -303,6 +312,21 @@ class TestTypeMap < Minitest::Test
         file = Sequel::Notion::File.external("https://example.com/a.pdf")
         result = TM.build_property([file, "https://example.com/b.pdf"], "files")
         assert_equal 2, result["files"].size
+    end
+
+    def test_file_url_with_a_space_raises_naming_the_property
+        error = assert_raises(Sequel::Error) do
+            TM.row_to_properties({ F: "https://ex.com/a b.pdf" },
+                                 { "F" => "files" })
+        end
+        assert_includes error.message, '"F"'
+    end
+
+    def test_file_url_with_no_path_is_named_by_the_url
+        %w[https://ex.com/ https://ex.com].each do |url|
+            name = Sequel::Notion::File.external(url).to_notion["name"]
+            assert_equal url, name
+        end
     end
 
     def test_files_nil_is_empty_array

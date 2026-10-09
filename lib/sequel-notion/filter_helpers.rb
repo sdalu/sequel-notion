@@ -89,13 +89,17 @@ module Sequel
             end
 
             # Integer and Float as is; any other number as a Float, which
-            # JSON writes as a number (BigDecimal and Rational would not)
+            # JSON writes as a number (BigDecimal and Rational would not).
+            # JSON has no NaN or Infinity.
             def number_value!(value)
-                case value
-                when Integer, Float then value
-                when Numeric then value.to_f
-                else Float(value)
-                end
+                number = case value
+                         when Integer, Float then value
+                         when Numeric then value.to_f
+                         else Float(value)
+                         end
+                return number if number.is_a?(Integer) || number.finite?
+
+                raise Sequel::Error, "not a number: #{value.inspect}"
             rescue ArgumentError, TypeError
                 raise Sequel::Error, "not a number: #{value.inspect}"
             end

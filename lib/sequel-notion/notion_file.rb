@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module Sequel
     module Notion
         class File
@@ -16,14 +18,10 @@ module Sequel
             end
 
             # Is this a Notion-hosted (internal) file?
-            def internal?
-                @type == :file
-            end
+            def internal? = @type == :file
 
             # Is this an external URL?
-            def external?
-                @type == :external
-            end
+            def external? = @type == :external
 
             # Has the Notion-hosted URL expired?
             def expired?
@@ -158,11 +156,21 @@ module Sequel
             # short.
 
             def to_notion_external
-                {
-                    "type" => "external",
-                    "name" => @name || ::File.basename(URI.parse(@url).path),
-                    "external" => { "url" => @url }
-                }
+                uri = parsed_url
+                { "type" => "external", "name" => @name || default_name(uri),
+                  "external" => { "url" => @url } }
+            end
+
+            def parsed_url
+                URI.parse(@url)
+            rescue URI::InvalidURIError
+                raise Sequel::Error, "invalid file URL: #{@url.inspect}"
+            end
+
+            # The URL's last path segment, or the URL when it has none
+            def default_name(uri)
+                base = ::File.basename(uri.path.to_s)
+                ["", "/"].include?(base) ? @url : base
             end
 
             def to_notion_file

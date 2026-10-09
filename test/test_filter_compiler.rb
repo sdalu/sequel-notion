@@ -535,6 +535,11 @@ class TestFilterCompiler < Minitest::Test
         assert_raises(Sequel::Error) { compile(expr) }
     end
 
+    def test_non_finite_number_value_raises
+        expr = @db[:t].where(N: Float::NAN).opts[:where]
+        assert_raises(Sequel::Error) { compile(expr) }
+    end
+
     def test_non_boolean_checkbox_value_raises
         expr = Sequel::SQL::BooleanExpression.new(:"=", :Done, "yes")
         assert_raises(Sequel::Error) { compile(expr) }
