@@ -78,7 +78,14 @@
 - `transaction(rollback: :always)` raises instead of keeping every write;
   `rollback: :reraise` re-raises `Sequel::Rollback`.
 - Upper-case page and data source ids are lower-cased, which Notion
-  requires.
+  requires, including an id given to `register_data_source`: it used to
+  make every query 404, `table_exists?` false and id lookups empty.
+- A model's `save` of a loaded record sends only the changed columns.
+  Sending every column wrote back what a row reads (a date's start only,
+  the first 25 relations or people, rich text as plain text), dropping
+  a range's end, the other relations and the formatting.
+- A date `Hash` with no `:start` raises, as a beginless `Range` does,
+  instead of sending a date Notion rejects (checked live).
 
 ## 0.1.0
 

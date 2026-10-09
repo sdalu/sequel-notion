@@ -109,7 +109,7 @@ module Sequel
                 return unless FilterCompiler.property_name(expr.args[0]) ==
                               "id"
 
-                Array(expr.args[1]).map { it.to_s.delete("-").downcase }.uniq
+                Array(expr.args[1]).map { bare_id(it) }.uniq
             rescue Error
                 nil
             end
@@ -137,9 +137,10 @@ module Sequel
             def in_source?(page, ds_id)
                 parent = page["parent"] || {}
                 parent["type"] == "data_source_id" &&
-                    parent["data_source_id"].delete("-") ==
-                        ds_id.to_s.delete("-")
+                    bare_id(parent["data_source_id"]) == bare_id(ds_id)
             end
+
+            def bare_id(id) = id.to_s.delete("-").downcase
         end
     end
 end

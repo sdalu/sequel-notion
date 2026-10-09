@@ -155,7 +155,8 @@ data source:
 Notion's date ranges include their end, so an exclusive range
 `d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
 exclusive `Time` range raises. A range needs a start: `d1..` leaves the
-end open, and `..d2` raises.
+end open, and `..d2` raises, as does a `Hash` with no `:start`; `nil`
+clears a date.
 
 NaN and Infinity, which JSON cannot carry, raise `Sequel::Error` in a
 write or a filter, and so does an external file URL that does not parse
@@ -176,7 +177,6 @@ request per page.
 
 ```ruby
 class Task < Sequel::Model(DB[:tasks])
-    plugin :skip_saving_columns   # when the data source has computed properties
 end
 
 task = Task.create(Name: "Ship it", Status: "Todo")
@@ -184,10 +184,12 @@ task.update(Status: "Done")
 Task[task.id].delete
 ```
 
-The primary key is `:id`. A full `save` sends every column, so a model
-over a data source with computed properties needs Sequel's
-`skip_saving_columns` plugin, which skips the columns the schema marks
-`generated`. `update` and `save_changes` send only what changed. Date
+The primary key is `:id`. A `save` of a loaded record sends only the
+columns that changed, as `update` and `save_changes` do: a row reads
+back partial values (a date's start, the first 25 relations or people,
+rich text as plain text), and writing the whole row back would make
+the loss permanent. Computed properties are marked `generated` in the
+schema, for Sequel's `skip_saving_columns` plugin. Date
 columns are not typecast, so a `Time` or a `Range` reaches Notion as
 given.
 
@@ -241,7 +243,8 @@ in Notion.
   through the `date` key; page lookups by id with or without dashes;
   page creation with the `data_source_id` parent; writing, reading back
   and clearing every writable type; trashing and restoring; and a
-  `Sequel::Model` create, update and destroy; and that search keeps
+  `Sequel::Model` create, update and destroy, and a `save` of a loaded
+  record keeping a date range's end and its relations; and that search keeps
   listing a trashed data source, flagged `in_trash`.
 
 

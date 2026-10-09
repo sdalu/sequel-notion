@@ -56,3 +56,14 @@ Selected rows used to carry `:id` first, so that `update` and `delete`
 could find their pages. Sequel's `get` and `select_map` take the first
 value of a row, so `get(:Name)` returned the page id. Writes now collect
 ids from the full pages, and selected rows hold only what was selected.
+
+## A full model `save` filtered by `skip_saving_columns`
+
+A model's `save` first sent every column, as Sequel does by default, and
+the `skip_saving_columns` plugin kept the computed ones out. That made
+the save legal but not safe: a row reads back partial values (a date's
+start only, the first 25 relations or people, rich text as plain text),
+so saving a loaded record after changing one column wrote those back,
+dropping a range's end, the other relations and the formatting. A save
+now sends only the changed columns.
+`test_model_save_writes_only_changed_columns` watches it.

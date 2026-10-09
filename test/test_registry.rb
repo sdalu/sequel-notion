@@ -115,6 +115,12 @@ class TestRegistry < Minitest::Test
         assert_equal 0, @searches
     end
 
+    def test_registered_data_source_id_is_lower_cased
+        @db.register_data_source(:t, "0123456789ABCDEF0123456789ABCDEF")
+        assert_equal "0123456789abcdef0123456789abcdef",
+                     @db.data_source_id_for(:t)
+    end
+
     def test_auto_register_discovers_once
         db = connect(auto_register: true)
         assert_includes db.tables, :electricite

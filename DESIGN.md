@@ -65,8 +65,11 @@ column. Clearing a column uses the value Notion documents for that type
 
 Computed properties are refused on write, and the schema marks them
 `generated`, which is what Sequel's `skip_saving_columns` plugin reads.
-That keeps the refusal for an explicit write while letting a model's full
-`save` work. Date columns get the schema type `:notion_date`, for which
+That keeps the refusal for an explicit write. A model's `save` of a
+loaded record sends only the changed columns (`ModelSaveSupport`), not
+Sequel's default of every column: a row reads back partial values (a
+date's start, 25 relations, plain text), and writing them back unchanged
+would destroy the rest. Date columns get the schema type `:notion_date`, for which
 Sequel has no typecast, because `:date` or `:datetime` would drop the time
 or force one. Numbers other than Integer and Float are sent as Float,
 because JSON would otherwise carry a BigDecimal or Rational as a string.

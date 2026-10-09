@@ -16,6 +16,21 @@ module Sequel
             end
         end
 
+        # A row reads back partial values (a date's start only, the first
+        # 25 relations or people, rich text as plain text), so a save
+        # writes back only the columns that were changed, never the
+        # whole row.
+        module ModelSaveSupport
+            private
+
+            def _save_update_all_columns_hash
+                return super unless model.dataset.is_a?(Notion::Dataset)
+
+                _save_update_changed_columns_hash
+            end
+        end
+
         Sequel::Model::ClassMethods.prepend(ModelSupport)
+        Sequel::Model::InstanceMethods.prepend(ModelSaveSupport)
     end
 end

@@ -44,13 +44,18 @@ module Sequel
                       "#{range.inspect}"
             end
 
+            # Like a Range, a Hash needs a start; nil is how a date is cleared
             def build_date_hash(value)
                 start_v = value.key?(:start) ? value[:start] : value["start"]
                 end_v = value.key?(:end) ? value[:end] : value["end"]
 
-                result = {}
-                result["start"] = date_component(start_v) unless start_v.nil?
-                result["end"]   = date_component(end_v) unless end_v.nil?
+                if start_v.nil?
+                    raise Sequel::Error,
+                          "a date needs a start: #{value.inspect}"
+                end
+
+                result = { "start" => date_component(start_v) }
+                result["end"] = date_component(end_v) unless end_v.nil?
                 result
             end
 

@@ -230,6 +230,14 @@ class TestTypeMap < Minitest::Test
         )
     end
 
+    # As for a Range: Notion's date needs a start; nil clears it
+    def test_date_hash_needs_a_start
+        assert_raises(Sequel::Error) do
+            TM.build_property({ end: "2026-01-31" }, "date")
+        end
+        assert_raises(Sequel::Error) { TM.build_property({}, "date") }
+    end
+
     def test_date_nil_is_nil
         assert_equal({ "date" => nil }, TM.build_property(nil, "date"))
     end

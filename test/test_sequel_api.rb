@@ -100,6 +100,15 @@ class TestSequelApi < Minitest::Test
                      @sent.last["properties"])
     end
 
+    # A row reads back partial values (a date's start only, the first
+    # 25 relations, plain text): save must not write them back
+    def test_model_save_writes_only_changed_columns
+        rec = model.load(id: "p9", Name: "x", Due: "2026-01-01", N: 1)
+        rec.Name = "z"
+        rec.save
+        assert_equal ["Name"], @sent.last["properties"].keys
+    end
+
     def test_model_keeps_time_and_ranges_for_dates
         klass = model
         due = Time.new(2026, 10, 9, 12, 0, 0, "+02:00")
