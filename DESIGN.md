@@ -9,7 +9,7 @@ unchanged. Below that layer nothing is SQL: the dataset reads its own
 them into Notion requests. `select_sql` returns a placeholder because
 Sequel renders it before every fetch, and a real rendering would fail on
 values SQL cannot express. `fetch_rows` refuses any SQL other than that
-placeholder.
+placeholder, so `with_sql` raises: there is no SQL to run.
 
 Two Sequel optimisations assume SQL, and both are turned off. Cached
 loaders (`first(...)` called repeatedly, `Model[...]`) replace WHERE with
@@ -21,6 +21,8 @@ and deletes go through `where(id:)`. The dataset's own helpers are named
 `each_notion_page` and `notion_page_size`, so Sequel's pagination
 extension, which defines `each_page`, can sit on top.
 
+## Ordering and paging follow Notion
+
 Notion sorts by a property or a timestamp, never by page id, so ordering
 by `:id` raises, and `ModelOrderSupport` stops a model from adding its
 primary key order to `last` and `paged_each`. Mapping `:id` to the
@@ -30,27 +32,49 @@ Notion's cursor instead of Sequel's `OFFSET` pages, which the adapter
 can only honour by re-reading every page skipped; Sequel's postgres
 adapter does the same through `use_cursor`, which needs no order.
 
-Aggregates (`sum`, `avg`, `min`, `max`, `count(:col)`) and `distinct`
-are computed in Ruby over the rows the query returns, as `offset` and
-`count` already were: the result is SQL's, and the cost is reading every
-matching row, which the README states. The `where` still runs in Notion.
-They run only on a dataset that asks with `client_side`; otherwise they
-raise before the first request. A join or a sum is written like any
-other query, and nothing in it says that it will read two whole data
-sources at 3 requests a second; the opt-in makes the caller say it, and
-a refusal costs nothing, where a query stopped halfway has already
-spent its requests. `client_side(max_requests: n)` adds a ceiling for
-the caller who wants one (`RequestBudget`): it counts every request the
-query sends, nested queries included, and raises before the one past
-it. Running them by default, as `offset` and `count` already read every
-page, was the alternative; it was rejected because the cost of a join
-or a group is not visible where it is written. `group` is computed the same way, each
-group keeping one running value per aggregate (`GroupAccumulator`)
-rather than its rows, so memory grows with the groups, not the rows.
-`having` is evaluated over those groups with SQL's three-valued logic,
-an aggregate it writes out being computed as a hidden output.
-`DISTINCT ON` keeps the first row of each key; `union`, `intersect` and
-`except` read each query's rows and combine them as SQL does.
+## Computed in Ruby, behind `client_side`
+
+Notion's API computes no aggregate, `distinct`, group, combination of
+queries or join. The adapter computes them in Ruby over the rows the
+queries return, as `offset` and `count` already were: the result is
+SQL's, and the cost is reading every matching row, which the README
+states. Notion still does what it can express: each `where` condition
+is sent with the query of the table it tests, and rows arrive through
+its cursor.
+
+```text
+┌─ Notion, one query per table ───┐    ┌─ Ruby, under client_side ──────┐
+│ where: each condition sent with │    │ join: match on one equality    │
+│   the table it tests            ├───▸│ group, having, aggregates      │
+│ rows: 100 per request, through  │    │ distinct, DISTINCT ON          │
+│   the cursor                    │    │ union, intersect, except       │
+└─────────────────────────────────┘    │ offset, limit over the result  │
+                                       └────────────────────────────────┘
+```
+
+These operations run only on a dataset that asks with `client_side`;
+otherwise they raise before the first request. A join or a sum is
+written like any other query, and nothing in it shows that it will read
+whole data sources at about 3 requests a second; the opt-in makes the
+caller say so. Opt-in was chosen over a default request budget because
+a refusal costs nothing and happens before the first request, whereas a
+budget stops a query that is already running and has already spent its
+requests. Running computed operations by default, as `offset` and
+`count` already read every page, was the rejected alternative.
+
+`client_side(max_requests: n)` adds a ceiling for a caller who wants
+one, and accepting a stop in the middle of a query is that caller's
+choice. `RequestBudget` counts every request the query sends, nested
+queries included (both tables of a join, both sides of a union, the
+schema fetch), and raises before the request past it.
+
+`group` keeps one running value per aggregate per group
+(`GroupAccumulator`) rather than the group's rows, so memory grows with
+the number of groups, not of rows. `having`
+is evaluated over the groups with SQL's three-valued logic, an aggregate
+it writes out being computed as a hidden output. `DISTINCT ON` keeps the
+first row of each key; `union`, `intersect` and `except` read each
+query's rows and combine them as SQL does.
 
 Joins are inner or left, on one equality, matched in Ruby with a hash on
 the joined side, whose rows are held in memory. Each `where` condition
@@ -59,12 +83,16 @@ tests two tables has no Notion filter and raises rather than be
 evaluated over every pair. A relation is an Array of page ids, so an
 equality with it matches every id it lists: that is what makes
 `join(:projects, id: :Project)` follow the relation. Aggregates and
-groups read columns under hidden names (`Sequel.as(column, :__c0)`), so
-a qualified column keeps its table through them.
+groups read columns under hidden names (`:__value`, `:__c0`), so a
+qualified column keeps its table through them.
 
-Clauses Notion cannot express (`join`, `group`, `having`, `DISTINCT ON`,
-unions, locks) raise instead of being dropped. A query that silently
-returns the wrong rows is worse than one that refuses to run.
+What neither Notion nor Ruby computes raises instead of being dropped:
+locks (on every path, the computed ones included), raw SQL (`with_sql`),
+right, full and cross joins, a join `ON` other than one equality, a
+`where` condition testing two joined tables, `INTERSECT ALL` and
+`EXCEPT ALL`, and a `where`, `group`, `having`, `distinct` or join added
+to a combined query. A query that silently returns the wrong rows
+is worse than one that refuses to run.
 
 ## Where expressions are compiled
 
@@ -145,9 +173,10 @@ Computed properties are refused on write, and the schema marks them
 That keeps the refusal for an explicit write. A model's `save` of a
 loaded record sends only the changed columns (`ModelSaveSupport`), not
 Sequel's default of every column: a row reads rich text back as plain
-text, and writing it back unchanged would destroy the formatting. Date columns get the schema type `:notion_date`, for which
-Sequel has no typecast, because `:date` or `:datetime` would drop the time
-or force one. Numbers other than Integer and Float are sent as Float,
+text, and writing it back unchanged would destroy the formatting. Date
+columns get the schema type `:notion_date`, for which Sequel has no
+typecast, because `:date` or `:datetime` would drop the time or force
+one. Numbers other than Integer and Float are sent as Float,
 because JSON would otherwise carry a BigDecimal or Rational as a string.
 
 ## Ids are collected before writing

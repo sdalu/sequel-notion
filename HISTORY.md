@@ -84,3 +84,11 @@ A date first read back as its `start` string only, so a range lost its
 end on read, and a model's full save wrote that loss back to Notion. A
 date with an end now reads as a `Range` of the two strings, which the
 write path already took.
+
+## Grouping refused for its memory
+
+`group` was first left raising, on the claim that it would hold every
+row of the data source in memory. The claim was wrong: a group needs one
+running value per aggregate, not its rows, so memory grows with the
+number of groups. Grouping is now computed in Ruby behind `client_side`
+(`GroupAccumulator`).

@@ -9,8 +9,8 @@
 - Trap: the suite never reaches api.notion.com; it stubs Notion with
   Faraday's test adapter (`faraday_adapter: [:test, stubs]`). A green run
   proves the payloads match what the code believes about Notion, not what
-  Notion accepts. README's Known shortfalls lists the claims not yet checked
-  against the live API.
+  Notion accepts. README's "Checked against the live API" section lists
+  what was checked live; anything else rests on stubs only.
 - Trap: `faraday-retry` is a separate gem and is not installed
   system-wide here, so plain `rake test` fails with a LoadError. Use
   `bundle exec`.

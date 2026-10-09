@@ -6,9 +6,25 @@ A [Sequel](https://sequel.jeremyevans.net/) adapter for Notion. Each Notion
 `limit` and `select`, write it with `insert`, `update` and `delete`, and
 can put a `Sequel::Model` on top of it.
 
-Every Sequel call becomes one or more Notion API requests. Nothing is
-translated to SQL. Clauses, selections and comparisons Notion cannot
-express raise a `Sequel::Error` instead of being dropped.
+Every Sequel call becomes one or more Notion API requests; nothing is
+translated to SQL. What Notion can answer is sent to Notion. What it
+cannot — joins, groups, aggregates, `distinct`, unions — is computed in
+Ruby, only on a dataset that asks for it with `client_side`. Anything
+else raises a `Sequel::Error` rather than be dropped.
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Connecting](#connecting)
+- [Naming tables](#naming-tables)
+- [Reading](#reading)
+- [Computed in Ruby](#computed-in-ruby)
+- [Values](#values)
+- [Writing](#writing)
+- [Models](#models)
+- [Schema](#schema)
+- [Errors, retries and logging](#errors-retries-and-logging)
+- [Known shortfalls](#known-shortfalls)
+- [Checked against the live API](#checked-against-the-live-api)
 
 
 ## Requirements
@@ -40,11 +56,14 @@ require "sequel"
 DB = Sequel.connect(adapter: :notion, token: ENV["NOTION_TOKEN"])
 ```
 
-| Option            | Meaning                                                         |
-|-------------------|-----------------------------------------------------------------|
-| `token`           | The integration token (required)                                |
-| `auto_register`   | On the first lookup, register every data source the token sees  |
-| `faraday_adapter` | Faraday adapter (default `Faraday.default_adapter`); the test suite passes `[:test, stubs]` |
+| Option            | Meaning                                             |
+| ----------------- | --------------------------------------------------- |
+| `token`           | The integration token (required)                    |
+| `auto_register`   | Discover every data source on the first lookup      |
+| `faraday_adapter` | Faraday adapter (default `Faraday.default_adapter`) |
+
+The test suite passes `faraday_adapter: [:test, stubs]` to answer for
+Notion.
 
 
 ## Naming tables
@@ -73,7 +92,7 @@ DB.register_data_source(:tasks, "<data source id>")
 DB.register_all_data_sources(database: "<database id>")
 DB.register_all_data_sources { |title, id| "notion_#{title}" }   # by search
 
-DB.tables                      # => [:tasks, ...]
+DB.tables                       # => [:tasks, ...]
 DB.data_sources(query: "Bills") # => [{id:, name:, parent_database_id:, ...}]
 ```
 
@@ -97,43 +116,70 @@ DB[:tasks].where(Status: "In Progress", Done: false)
 Each row has `:id` (the page id), `:in_trash`, and one key per property,
 named as in Notion (`:"Due Date"` for a property with a space). A property
 named `id` or `in_trash` would hide the page's own column, so a data
-source that has one raises; rename the property in Notion. A date reads
-back as its ISO 8601 start, or as a `Range` of the two strings when it has
-an end, which a write takes back as is; a unique ID as Notion shows it,
-`"TK-62"`; title and rich text as plain text; select and status as the
-option name; multi-select, people and relation as an `Array` of names or
-ids; files as `Sequel::Notion::File`s; a rollup as its value, a number,
-a date, or an `Array` of the rolled-up values read the same way.
+source that has one raises; rename the property in Notion. What each
+type reads back as is under [Values](#values).
 
-| Sequel                                  | Notion filter                              |
-|-----------------------------------------|--------------------------------------------|
-| `where(P: v)`, `exclude(P: v)`          | `equals`, `does_not_equal`                 |
-| `where(P: nil)`                         | `is_empty` (`is_not_empty` when excluded), also for a formula or a rollup |
-| `where(Done: true)`, `where(:Done)`     | checkbox `equals`, also for a checkbox formula |
-| `where(P: [a, b])`                      | `or` of `equals`; a `nil` in the list is `is_empty` |
-| `<`, `<=`, `>`, `>=`                    | number comparisons; `before`/`after`/`on_or_…` on dates |
-| `Sequel.like(:P, "%x%")`, `"x%"`, `"%x"`, `"x"` | `contains`, `starts_with`, `ends_with`, `equals` |
-| `Sequel.like(:P, "%")` (wildcards only) | `is_not_empty` (`is_empty` for `NOT LIKE`) |
-| multi-select, people, relation `=`      | `contains`                                 |
-| formula                                 | nested by the value's class: `string`, `number`, `checkbox`, `date` |
-| unique id `=`, `<`, …                   | `unique_id` on its number, given as `62` or `"TK-62"` |
-| rollup `=`, `<`, `IN`, …                | nested under `number` or `date`, for a rollup whose function gives one value (`sum`, `count`, `latest_date`, …) |
-| `&`, `\|`, `~`                          | `and`, `or`, and the inverse operator      |
+### Filters
+
+| Sequel                         | Notion filter                          |
+| ------------------------------ | -------------------------------------- |
+| `where(P: v)`, `exclude(P: v)` | `equals`, `does_not_equal`             |
+| `where(P: nil)`                | `is_empty`; excluded: `is_not_empty`   |
+| `where(Done: true)`            | checkbox `equals`, or a formula's      |
+| `where(:Done)`                 | the same                               |
+| `where(P: [a, b])`             | `or` of `equals`; `nil` is empty       |
+| `<`, `<=`, `>`, `>=`           | numbers; dates: `before`, `after`, …   |
+| `Sequel.like(:P, "%x%")`       | `contains`                             |
+| `"x%"`, `"%x"`, `"x"`          | `starts_with`, `ends_with`, `equals`   |
+| `Sequel.like(:P, "%")`         | `is_not_empty`; `NOT LIKE`: `is_empty` |
+| multi-select, people, relation | `=` as `contains`                      |
+| formula                        | nested by the value's class            |
+| rollup giving one value        | nested under `number` or `date`        |
+| unique ID                      | its number: `62` or `"TK-62"`          |
+| `&`, `\|`, `~`                 | `and`, `or`, and the inverse operator  |
+
+A rollup filters when its function gives one value (`sum`, `count`,
+`latest_date`, …). `nil` filters work on formulas and rollups too.
 
 Negations follow SQL, where `!=` never matches `NULL`: Notion's
 `does_not_equal` and `does_not_contain` match an empty property, so
-`exclude(N: 1)`, `NOT LIKE` and `NOT IN` add `is_not_empty` beside them
-(a checkbox is never empty and needs none). Notion nests `and`/`or` two
-levels deep at most: an `and` inside an `and` is merged into it, a level
-too many is distributed (`(a & b) | c` becomes `(a | c) & (b | c)`, up to
-32 clauses), and a filter still deeper raises.
+`exclude(Status: "Done")`, `NOT LIKE` and `NOT IN` add `is_not_empty`
+beside them, whatever the property's type (a checkbox or a unique ID is
+never empty and needs none). Notion nests
+`and`/`or` two levels deep at most: an `and` inside an `and` is merged
+into it, a level too many is distributed (`(a & b) | c` becomes
+`(a | c) & (b | c)`, up to 32 clauses), and a filter still deeper raises.
+
+### Ordering
 
 `order` maps to Notion sorts. Notion puts empty values last in both
 directions, so `nulls: :first` raises and `nulls: :last` changes nothing.
 Ordering by `:id` or `:in_trash` raises: they are the page's own columns,
 not properties Notion can sort by.
 
-### Computed in Ruby: `client_side`
+### Pages by id, and selection
+
+`where(id: "…")` or `where(id: [...])` fetches those pages directly,
+including pages in the trash (`:in_trash` says so). An id may be written
+with or without dashes, in either case, and a repeated id gives one row.
+Several id conditions intersect. A missing page, or one from another
+data source, is no row. An `id` condition combined with any other
+condition raises `Sequel::Error`.
+
+`select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
+the alias. Only plain, existing columns can be selected.
+
+### Paging
+
+Requests are paginated automatically, 100 rows each. `offset` is
+applied to the rows read, so the rows it skips are still fetched, and
+`count` pages through the results; neither needs `client_side`.
+`paged_each` follows Notion's cursor, as Sequel's cursor adapters do: it
+needs no order, sends one request per `rows_per_fetch` rows (at most
+100), and ignores `:strategy`.
+
+
+## Computed in Ruby
 
 Notion computes no aggregate, `distinct`, group, join or combination of
 queries. The adapter works them out in Ruby over every row the query
@@ -149,25 +195,44 @@ DB[:tasks].client_side(max_requests: 20)     # and at most 20 requests
 Task.client_side.group_and_count(:Status).all
 ```
 
-`max_requests` counts every request one query sends, both tables of a
-join and both sides of a union included; the query raises before the
-request past it.
+```text
+query ──▸ needs Ruby? ── no ──▸ Notion: where → filter, order →
+          (join, group,          sorts; offset and limit on the
+          distinct, sum, …)      pages read
+             │ yes
+             ▾
+          client_side? ── no ──▸ Sequel::Error, nothing sent
+             │ yes
+             ▾
+          Notion: one query per table, with the where
+             │  conditions that test it; max_requests caps
+             │  the requests of all of them
+             ▾
+          Ruby: match, group, aggregate or combine the rows,
+                then order, offset and limit
+```
 
-- `sum`, `avg`, `min`, `max` and `count(:col)` skip `nil`s and give `nil`
-  over no value; `distinct` drops repeated rows before `offset` and
-  `limit`, and `distinct(:P)` keeps the first row of each value, in the
+`max_requests` counts every request one query sends, both tables of a
+join and both sides of a union included; the query raises
+`Sequel::Error` before the request past it.
+
+- **Aggregates.** `sum`, `avg`, `min`, `max` and `count(:col)` skip
+  `nil`s and give `nil` over no value.
+- **Distinct.** `distinct` drops repeated rows before `offset` and
+  `limit`; `distinct(:P)` keeps the first row of each value, in the
   query's order.
-- `group(:P)` with the columns it groups and `count`, `sum`, `avg`, `min`
-  or `max` (`group_and_count`, `select_group`) keeps one running value
-  per group; `order`, `offset` and `limit` then apply to the groups,
-  empty values last. `having` filters them, on an aggregate written out
-  (`having { count.function.* > 1 }`) or on an output's name, with SQL's
-  rules for `nil`.
-- `union` (with or without `all:`), `intersect` and `except` combine the
-  rows of two queries as SQL does; `order`, `offset` and `limit` apply to
-  the result, and a `where` on it raises.
-- `join` and `left_join` match rows on one equality, and a relation
-  matches every page it lists, so a join follows it:
+- **Groups.** `group(:P)` with the columns it groups and `count`, `sum`,
+  `avg`, `min` or `max` (`group_and_count`, `select_group`) keeps one
+  running value per group; `order`, `offset` and `limit` then apply to
+  the groups, empty values last. `having` filters them, on an aggregate
+  written out (`having { count.function.* > 1 }`) or on an output's
+  name, with SQL's rules for `nil`.
+- **Combined queries.** `union` (with or without `all:`), `intersect` and
+  `except` (without `all:`) combine the rows of two queries as SQL does;
+  `order`, `offset` and `limit` apply to the result, and a `where`,
+  `group`, `having`, `distinct` or join added to it raises.
+- **Joins.** `join` and `left_join` match rows on one equality, and a
+  relation matches every page it lists, so a join follows it:
 
   ```ruby
   DB[:tasks].client_side.join(:projects, id: :Project)
@@ -181,22 +246,55 @@ request past it.
   `select`, a later table's column wins a shared name, as with SQL
   adapters.
 
-### Paging
 
-`offset` is applied after the fact, so the rows it skips are still
-fetched, and `count` pages through the results; neither needs
-`client_side`. Requests are
-paginated automatically. `paged_each` follows Notion's cursor, as
-Sequel's cursor adapters do: it needs no order, sends one request per
-`rows_per_fetch` rows (at most 100), and ignores `:strategy`.
+## Values
 
-`where(id: "…")` or `where(id: [...])` fetches those pages directly,
-including pages in the trash (`:in_trash` says so). An id may be written
-with or without dashes, in either case, and a repeated id gives one row. Several id conditions intersect. A missing page, or one from another data source, is no row.
-An `id` condition cannot be combined with other conditions.
+How each Notion type reads back, and what a write takes for it:
 
-`select(:Name, Sequel.as(:Due, :due))` keeps only those keys, renamed by
-the alias. Only plain, existing columns can be selected.
+| Notion type         | Reads as                | A write takes               |
+| ------------------- | ----------------------- | --------------------------- |
+| title, rich_text    | plain text              | anything (`to_s`)           |
+| number              | Integer or Float        | `Numeric`, decimal `String` |
+| select, status      | the option name         | the option name             |
+| multi_select        | an `Array` of names     | an `Array` of names, or one |
+| date                | ISO start, or a `Range` | `Date`, `Time`, `Range`, …  |
+| checkbox            | `true` / `false`        | `true` / `false`            |
+| url, email, phone   | a `String`              | `to_s`                      |
+| relation            | an `Array` of page ids  | page id(s)                  |
+| people              | an `Array` of user ids  | user id(s)                  |
+| files               | `Sequel::Notion::File`s | `File`, URL, or an `Array`  |
+| formula             | its result              | read-only                   |
+| rollup              | its value               | read-only                   |
+| unique_id           | as shown, `"TK-62"`     | read-only                   |
+| created/edited time | an ISO 8601 `String`    | read-only                   |
+| created/edited by   | Notion's user object    | read-only                   |
+
+`nil` clears a property: to `[]` for text and lists, `false` for a
+checkbox, `null` otherwise.
+
+- **Text** is written in runs of 2000 characters as Notion counts them
+  (an emoji is two).
+- **Numbers** given as a `String` must be decimal (`"1e3"`, not `"0x1A"`
+  or `"1_000"`), in writes and filters alike; a number other than
+  Integer or Float is sent as a Float.
+- **Dates** read back as the ISO 8601 start, or as a `Range` of the two
+  strings when the date has an end, which a write takes back as is. A
+  write also takes an ISO 8601 `String` or `{start:, end:}`. Notion's
+  date ranges include their end, so an exclusive range `d1...d2` ends on
+  the day before `d2`; it must then end on a `Date`, and an exclusive
+  `Time` range raises. A range needs a start: `d1..` leaves the end
+  open, and `..d2` raises, as does a `Hash` with no `:start`.
+- **Relations and people** read back in full: a page lists at most 25,
+  and the rest is fetched from Notion for the columns a query selects.
+- **Files**: an unnamed file is named after the URL's last path segment;
+  a file of a type the adapter does not know reads back with its `raw`
+  hash and is written back unchanged.
+- **Rollups** read as their value: a number, a date, or an `Array` of
+  the rolled-up values, each read as its own type.
+
+NaN and Infinity, which JSON cannot carry, raise `Sequel::Error` in a
+write or a filter, and so does an external file URL that does not parse
+(a space in it, for instance).
 
 
 ## Writing
@@ -208,38 +306,14 @@ DB[:tasks].where(Status: "Todo").update(Status: "Done")
 DB[:tasks].where(id: id).delete          # moves the page to the trash
 ```
 
-Values are encoded according to the property's Notion type, read from the
-data source:
-
-| Notion type                     | Ruby value                                   | `nil` clears to |
-|---------------------------------|----------------------------------------------|-----------------|
-| title, rich_text                | anything (`to_s`), split into runs of 2000 characters as Notion counts them (an emoji is two) | `[]` |
-| number                          | a finite `Numeric` (sent as Integer or Float), or a decimal `String` (`"1e3"`, not `"0x1A"` or `"1_000"`), also in filters | `null` |
-| select, status                  | the option name                              | `null`          |
-| multi_select                    | an `Array` of names, or one name             | `[]`            |
-| date                            | `Date`, `Time`, a `Range` of them, an ISO 8601 `String`, or `{start:, end:}` | `null` |
-| checkbox                        | `true` / `false`                             | `false`         |
-| url, email, phone_number        | `to_s`                                       | `null`          |
-| relation                        | page id(s)                                   | `[]`            |
-| people                          | user id(s)                                   | `[]`            |
-| files                           | `Sequel::Notion::File`, a URL, or an `Array` of them; unnamed, a file is named after the URL's last path segment; a file of a type the adapter does not know reads back with its `raw` hash and is written back unchanged | `[]`    |
-
-Notion's date ranges include their end, so an exclusive range
-`d1...d2` ends on the day before `d2`. It must then end on a `Date`; an
-exclusive `Time` range raises. A range needs a start: `d1..` leaves the
-end open, and `..d2` raises, as does a `Hash` with no `:start`; `nil`
-clears a date.
-
-NaN and Infinity, which JSON cannot carry, raise `Sequel::Error` in a
-write or a filter, and so does an external file URL that does not parse
-(a space in it, for instance).
-
-Writing a computed property (formula, rollup, created/edited time or by,
-unique_id, button, verification) or an unknown property raises
-`Sequel::Error`. `insert` ignores `:id`; `update` ignores `:id` and
-turns `:in_trash` into trashing or restoring the page, so
-`where(id: id).update(in_trash: false)` restores a trashed page. A
-positional `insert(["a", 2])` fills the writable columns in schema order.
+Values are encoded according to the property's Notion type, read from
+the data source (see [Values](#values)). Writing a computed property
+(formula, rollup, created/edited time or by, unique ID, button,
+verification) or an unknown property raises `Sequel::Error`. `insert`
+ignores `:id`; `update` ignores `:id` and turns `:in_trash` into
+trashing or restoring the page, so `where(id: id).update(in_trash: false)`
+restores a trashed page. A positional `insert(["a", 2])` fills the
+writable columns in schema order.
 
 `update` and `delete` first collect the matching page ids, then send one
 request per page.
@@ -259,15 +333,18 @@ Task[task.id].delete
 The primary key is `:id`. A `save` of a loaded record sends only the
 columns that changed, as `update` and `save_changes` do: a row reads
 back rich text as plain text, and writing the whole row back would
-make the loss permanent. Notion cannot sort by page id, so a model adds
-no primary key order: `Task.paged_each` streams in Notion's order, and
-`Task.last` needs an explicit one, or raises Sequel's `No order
-specified`. A unique ID property gives one in creation order:
-`Task.order(:ID).last`. Sequel's `paged_operations` plugin pages
-by primary key ranges, so it raises on a Notion model. Computed
-properties are marked `generated` in the schema, for Sequel's
-`skip_saving_columns` plugin. Date columns are not typecast, so a `Time`
-or a `Range` reaches Notion as given.
+make the loss permanent. Computed properties are marked `generated` in
+the schema, for Sequel's `skip_saving_columns` plugin. Date columns are
+not typecast, so a `Time` or a `Range` reaches Notion as given.
+
+Notion cannot sort by page id, so a model adds no primary key order:
+`Task.paged_each` streams in Notion's order, and `Task.last` needs an
+explicit one, or raises Sequel's `No order specified`. A created-time
+property gives one in creation order, `Task.order(:Created).last`, and
+so does a unique ID property, `Task.order(:ID).last`. Sequel's
+`paged_operations` plugin pages by primary key ranges, so it raises on a
+Notion model. `Task.client_side` opens what is
+[computed in Ruby](#computed-in-ruby) to a model.
 
 Notion has no transactions: `DB.transaction` runs its block, swallows
 `Sequel::Rollback` (re-raised with `rollback: :reraise`), and rolls nothing
@@ -299,49 +376,55 @@ in Notion.
 
 ## Known shortfalls
 
-- No raw SQL (`with_sql`): there is no SQL to run it. Joins are inner or
-  left, on one equality; right, full and cross joins, and a `where`
-  condition testing two tables, raise.
-- Joins, aggregates, `distinct` (and `DISTINCT ON`), `group` and
-  `having`, and `union`, `intersect` and `except` are computed in Ruby,
-  only under `client_side`, and read every row the queries return (100
-  per request).
+- No raw SQL (`with_sql`): there is no SQL to run it. No locks
+  (`for_update`): Notion has none.
+- Joins are inner or left, on one equality; right, full and cross joins,
+  and a `where` condition testing two tables, raise.
+- What is [computed in Ruby](#computed-in-ruby) reads every
+  row its queries return, and so do `offset` and `count`.
 - Filters compare a property with a value, never with another property or
   an expression.
-- `offset` and `count` fetch the pages they skip or count.
-- `LIKE` patterns are limited to the shapes in the filter table above. A `_`
+- `LIKE` patterns are limited to the shapes in the filter table. A `_`
   wildcard or a `%` in the middle raises. Notion's own case rules apply to
   both `LIKE` and `ILIKE`. On a multi-select, people or relation property,
   Notion matches whole values only, so a pattern with any `%` raises.
 - A rollup that keeps every value (`show_original`, `show_unique`) cannot
   be filtered: Notion's `any`/`every`/`none` have no SQL reading.
-- A page lists at most 25 relations or people; a row's relation flagged
-  `has_more`, or 25 people (Notion flags none), is completed from the
-  page property endpoint, page by page, for the columns a
-  query selects. Mentions inside a title or rich text are still cut at
-  25, unflagged.
+- Mentions inside a title or rich text are cut at 25 by Notion, unflagged,
+  and are not completed.
 - Notion's rate limit is 3 requests per second on most plans, so a large
   `update` or `delete` is slow.
-- Checked against the live API (2026-10-09): filters on title, url and
-  email through the `rich_text` key and on created and edited times
-  through the `date` key; page lookups by id with or without dashes;
-  page creation with the `data_source_id` parent; writing, reading back
-  and clearing every writable type; trashing and restoring; and a
-  `Sequel::Model` create, update and destroy, and a `save` of a loaded
-  record keeping a date range's end and its relations; `paged_each`
-  following the cursor with a `page_size` below 100; negated filters
-  excluding empty values, and filters merged or distributed to two
-  levels; a relation of 26 pages read in full; a date range read back
-  as a `Range` and written back; unique ID filters and sorts; rollups of
-  a number, dates and titles read as values; filters and sorts on a sum
-  rollup; `nil` filters on string and number formulas and a sum rollup;
-  aggregates, `distinct`, `DISTINCT ON`, `group`, `having`, `union`,
-  `intersect` and `except` over rows with and without values; inner and
-  left joins through a relation, with a `where` per side, a sum and a
-  group over them;
-  formula
-  negations excluding empty results; and that search keeps
-  listing a trashed data source, flagged `in_trash`.
+
+
+## Checked against the live API
+
+The suite stubs Notion, so it proves the payloads match what the adapter
+believes Notion accepts. These were also checked against
+`api.notion.com` (2026-10-09):
+
+- **Filters:** title, url and email through the `rich_text` key; created
+  and edited times through the `date` key; negations excluding empty
+  values, formula negations excluding empty results, and filters merged
+  or distributed to two levels; unique ID filters and sorts; filters and
+  sorts on a sum rollup; `nil` filters on string and number formulas and
+  a sum rollup.
+- **Pages:** lookups by id with or without dashes; creation with the
+  `data_source_id` parent; writing, reading back and clearing every
+  writable type; trashing and restoring; a relation of 26 pages read in
+  full; a date range read back as a `Range` and written back; rollups of
+  a number, dates and titles read as values.
+- **Models:** create, update and destroy; a `save` of a loaded record
+  keeping a date range's end and its relations; `order` on a created-time
+  property accepted by Notion.
+- **Reading:** `paged_each` following the cursor with a `page_size` below
+  100.
+- **Computed in Ruby:** refused without `client_side` and no request
+  sent; aggregates, `distinct`, `DISTINCT ON`, `group`, `having`,
+  `union`, `intersect` and `except` over rows with and without values;
+  inner and left joins through a relation, with a `where` per side, a
+  sum and a group over them; `max_requests` stopping a join.
+- **Discovery:** search keeps listing a trashed data source, flagged
+  `in_trash`.
 
 
 ## License
