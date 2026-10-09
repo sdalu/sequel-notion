@@ -339,9 +339,11 @@ not typecast, so a `Time` or a `Range` reaches Notion as given.
 
 Notion cannot sort by page id, so a model adds no primary key order:
 `Task.paged_each` streams in Notion's order, and `Task.last` needs an
-explicit one, or raises Sequel's `No order specified`. A created-time
-property gives one in creation order, `Task.order(:Created).last`, and
-so does a unique ID property, `Task.order(:ID).last`. Sequel's
+explicit one, or raises Sequel's `No order specified`. A unique ID
+property gives one in creation order, `Task.order(:ID).last`. A
+created-time property does too, `Task.order(:Created).last`, but only to
+the minute: Notion stores created and edited times without seconds, so
+pages created in the same minute tie. Sequel's
 `paged_operations` plugin pages by primary key ranges, so it raises on a
 Notion model. `Task.client_side` opens what is
 [computed in Ruby](#computed-in-ruby) to a model.
@@ -393,7 +395,9 @@ in Notion.
 - Mentions inside a title or rich text are cut at 25 by Notion, unflagged,
   and are not completed.
 - Notion's rate limit is 3 requests per second on most plans, so a large
-  `update` or `delete` is slow.
+  `update` or `delete` is slow. The retry on a 429 is tested against
+  stubs only: bursts of 30 and 90 parallel queries drew no 429 from
+  Notion (2026-10-09).
 
 
 ## Checked against the live API
@@ -406,8 +410,8 @@ believes Notion accepts. These were also checked against
   and edited times through the `date` key; negations excluding empty
   values, formula negations excluding empty results, and filters merged
   or distributed to two levels; unique ID filters and sorts; filters and
-  sorts on a sum rollup; `nil` filters on string and number formulas and
-  a sum rollup.
+  sorts on a sum rollup and on a `latest_date` rollup; `nil` filters on
+  string and number formulas and on both rollups.
 - **Pages:** lookups by id with or without dashes; creation with the
   `data_source_id` parent; writing, reading back and clearing every
   writable type; trashing and restoring; a relation of 26 pages read in
@@ -415,7 +419,7 @@ believes Notion accepts. These were also checked against
   a number, dates and titles read as values.
 - **Models:** create, update and destroy; a `save` of a loaded record
   keeping a date range's end and its relations; `order` on a created-time
-  property accepted by Notion.
+  property, whose values Notion stores to the minute.
 - **Reading:** `paged_each` following the cursor with a `page_size` below
   100.
 - **Computed in Ruby:** refused without `client_side` and no request

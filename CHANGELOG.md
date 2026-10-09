@@ -34,13 +34,13 @@
 - A rollup reads back as its value (a number, a date, or an `Array` of
   the rolled-up values) instead of a raw hash (checked live); a rollup
   whose function gives one value filters and sorts like one: `where(Sum:
-  7)`, `Sum > 1`, `exclude`, `IN` (checked live for a sum). `IN` on a
-  formula works too, and a formula date `!=` is `before or after`
-  instead of raising. `where(F: nil)` on a formula or a rollup is
-  `is_empty`, since Notion checks a formula's emptiness whatever its
-  result type (checked live on string and number formulas); formula
-  negations need no guard, since Notion already excludes an empty
-  formula result (checked live).
+  7)`, `Sum > 1`, `exclude`, `IN` (checked live for a sum and a
+  `latest_date`). `IN` on a formula works too, and a formula date `!=`
+  is `before or after` instead of raising. `where(F: nil)` on a formula
+  or a rollup is `is_empty`, since Notion checks a formula's emptiness
+  whatever its result type (checked live on string and number formulas);
+  formula negations need no guard, since Notion already excludes an
+  empty formula result (checked live).
 - `sum`, `avg`, `min`, `max`, `count(:col)`, `distinct` and
   `distinct(:col)` (`DISTINCT ON`) work, computed in Ruby over the rows
   the query returns, with SQL's rules for `nil` and for `distinct`
