@@ -889,8 +889,10 @@ class TestFilterCompiler < Minitest::Test
     end
 
     def test_non_numeric_number_value_raises
-        expr = @db[:t].where(N: "abc").opts[:where]
-        assert_raises(Sequel::Error) { compile(expr) }
+        ["abc", Complex(1, 2)].each do |bad|
+            expr = @db[:t].where(N: bad).opts[:where]
+            assert_raises(Sequel::Error, bad.inspect) { compile(expr) }
+        end
     end
 
     def test_non_finite_number_value_raises

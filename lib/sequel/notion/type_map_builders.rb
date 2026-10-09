@@ -44,6 +44,8 @@ module Sequel
                 when String then parse_number(value)
                 else raise Sequel::Error, "invalid number: #{value.inspect}"
                 end
+            rescue RangeError # a Complex has no Float
+                raise Sequel::Error, "invalid number: #{value.inspect}"
             end
 
             # JSON has no NaN or Infinity

@@ -157,6 +157,7 @@ module SqlOracle
         when "starts_with" then !value.nil? && value.start_with?(arg)
         when "ends_with" then !value.nil? && value.end_with?(arg)
         when "contains" then !value.nil? && value.include?(arg)
+        when "does_not_contain" then value.nil? || !value.include?(arg)
         when "is_empty" then value.nil?
         when "is_not_empty" then !value.nil?
         when "does_not_equal" then value != arg

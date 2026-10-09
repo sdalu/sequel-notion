@@ -102,7 +102,8 @@ class TestTypeMap < Minitest::Test
     end
 
     def test_number_refuses_nan_and_infinity_naming_the_property
-        [Float::NAN, Float::INFINITY, -Float::INFINITY].each do |value|
+        [Float::NAN, Float::INFINITY, -Float::INFINITY,
+         Complex(1, 2)].each do |value|
             error = assert_raises(Sequel::Error) do
                 TM.row_to_properties({ N: value }, { "N" => "number" })
             end

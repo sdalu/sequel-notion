@@ -115,7 +115,7 @@ module Sequel
                 return number if number.is_a?(Integer) || number.finite?
 
                 raise Sequel::Error, "not a number: #{value.inspect}"
-            rescue ArgumentError, TypeError
+            rescue ArgumentError, TypeError, RangeError
                 raise Sequel::Error, "not a number: #{value.inspect}"
             end
 

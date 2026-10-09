@@ -147,7 +147,8 @@ Negations follow SQL, where `!=` never matches `NULL`: Notion's
 `does_not_equal` and `does_not_contain` match an empty property, so
 `exclude(Status: "Done")`, `NOT LIKE` and `NOT IN` add `is_not_empty`
 beside them, whatever the property's type (a checkbox or a unique ID is
-never empty and needs none). Notion nests
+never empty and needs none, so `nil` on one raises, alone or in a list).
+Notion nests
 `and`/`or` two levels deep at most: an `and` inside an `and` is merged
 into it, a level too many is distributed (`(a & b) | c` becomes
 `(a | c) & (b | c)`, up to 32 clauses), and a filter still deeper raises.
@@ -439,6 +440,8 @@ believes Notion accepts. These were also checked against
 - **Dates:** a time written to a date property kept to the minute; an
   open range (`d..`) and `{start:}` both clearing a range's end.
 - **Checkboxes:** sorted `false` first, `true` first descending.
+- **Rollups:** a `show_original` rollup through 30 relations read in
+  full, all 30 values, in a query and by id.
 - **Files:** a Notion-hosted file read from a page and written back
   unchanged, signed URL included, kept by Notion.
 - **Pages:** lookups by id with or without dashes; creation with the

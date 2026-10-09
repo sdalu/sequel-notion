@@ -150,6 +150,12 @@ class TestSqlOracle < Minitest::Test
                       .union(it[:tasks].where(Sequel[:Due] > D1)
                                        .select(:Kind, :Due)).all
         },
+        # Relations: = is contains, != is does_not_contain (guarded)
+        rel_equal: -> { rel(it, Proj: P0) },
+        rel_not_equal: -> { rel(it, Sequel.~(Proj: P0)) },
+        rel_in: -> { rel(it, Proj: [P0, P1]) },
+        rel_not_in: -> { rel(it, Sequel.~(Proj: [P0, P1])) },
+        rel_nil: -> { [rel(it, Proj: nil), rel(it, Sequel.~(Proj: nil))] },
         # Empty lists: IN matches nothing, NOT IN everything
         empty_in: -> { kind(it, Kind: []) },
         empty_not_in: -> { kind(it, Sequel.~(Kind: [])) },
@@ -196,6 +202,13 @@ class TestSqlOracle < Minitest::Test
 
     def self.due(tables, cond)
         tables[:tasks].where(cond).select(:Name, :Due).all
+    end
+
+    P0 = "bbbbbbbb-0000-0000-0000-000000000000"
+    P1 = "bbbbbbbb-0000-0000-0000-000000000001"
+
+    def self.rel(tables, cond)
+        tables[:tasks].where(cond).select(:Name, :N).all
     end
 
     def self.kind(tables, cond)
