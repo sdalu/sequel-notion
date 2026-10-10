@@ -21,7 +21,6 @@ Gem::Specification.new do |s|
 
     s.metadata = {
         "homepage_uri" => s.homepage,
-        "source_code_uri" => s.homepage,
         "changelog_uri" => "#{s.homepage}/blob/main/CHANGELOG.md",
         "rubygems_mfa_required" => "true"
     }
